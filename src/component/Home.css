@@ -1,0 +1,27 @@
+.home {
+    background-image: url('https://www.starwarsnewsnet.com/wp-content/uploads/2020/11/chapter13-1536x864.jpg');
+    background-size: cover;
+    background-position: center;
+    height: 75vh;
+    padding: rem 0;
+  }
+  
+  .home .jumbotron {
+    background-color: rgba(10, 10, 10, 0.5);
+    color: rgb(245, 245, 245);
+  }
+  
+  .home .jumbotron h1 {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    text-shadow: 2px 2px rgb(73, 70, 70);
+  }
+  
+  .home .jumbotron p {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+    text-shadow: 2px 2px #000;
+    color :rgb(0, 75, 236)
+  }
+  
+  

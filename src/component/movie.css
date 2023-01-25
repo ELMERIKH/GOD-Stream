@@ -1,0 +1,123 @@
+.movie-component {
+    background: linear-gradient(to bottom, #343544, #000000); /* gradient background */
+    color: white; /* text color */
+    padding: 20px; /* space around the content */
+    border-radius: 10px; /* rounded edges */
+    box-shadow: 0px 0px 20px #222; /* drop shadow */
+    display: flex; /* display as a flex container */
+    flex-wrap: wrap;
+    justify-content: space-between; 
+  }
+  .movie-component > div {
+    flex: 1; /* take up equal amount of space */
+    margin: 50px; 
+    width:10%/* add some space between items */
+  }
+  .movie-component img {
+    width: auto; /* full width */
+    border-radius: 10px; /* rounded edges */
+    box-shadow: 0px 0px 20px #222; /* drop shadow */
+     /* scale proportionally */
+    max-width: 100%;
+    width: 200px; /* set width */
+  height: 300px; /* set height */
+  object-fit: cover; /* maintain aspect ratio */
+  }
+  
+  .movie-component h2 {
+    margin-top: 0; /* remove space above heading */
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+}
+
+.pagination button {
+    margin: 0 1rem;
+}
+.p{
+    color: yellow;
+    box-shadow: 1px 12px 20px ;
+    padding: 0px;
+    border-radius: 30px;
+   
+}
+.pagination{
+    margin: 1rem;
+    
+}
+.h2{
+    color: aliceblue;
+    text-shadow: rgb(0, 0, 0);
+    text-transform: capitalize;
+    text-decoration: dashed;
+   
+   
+}
+.movie-page {
+  background-color: rgba(0,0,0,0.8);
+  color: white;
+  padding: 3%;
+}
+
+.movie-page img {
+  width: 20%;
+  height: auto;
+  margin-bottom: 2%;
+  
+}
+
+.movie-page h2 {
+  font-size: 3em;
+  margin-bottom: 1%;
+}
+
+.des p {
+  font-size: 1.5em;
+  line-height: 1.5;
+  margin-left: 25%;
+  height: 20%;
+  margin-top: 10pt;
+  color: rgb(213, 252, 252);
+ align-items: center;
+ position: absolute;
+}
+.f {
+  font-size: 1.2em;
+  line-height: 0.5;
+  margin-right: 20%;
+  color: rgb(23, 24, 24);
+  margin: 0rem;
+    
+}
+.movie-page label {
+  font-size: 1.2em;
+  line-height: 1.5;
+  margin-right: 20%;
+  color: azure;
+
+  
+}
+.rate-button {
+  background-color: #363636;
+  color: rgb(238, 255, 0);
+  border: none;
+  padding: 1% 2%;
+  font-size: 1.2em;
+  margin-top: 0%;
+  
+}
+
+.rate-button:hover {
+  background-color: #08a564;
+  cursor: pointer;
+}
+.s {
+  font-size: 1.2em;
+  line-height: 0.5;
+  margin-right: 2%;
+  color: rgb(23, 24, 24);
+  margin: 1rem;
+    
+}

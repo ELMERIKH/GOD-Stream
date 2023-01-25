@@ -1,0 +1,57 @@
+.form-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 50%;
+    margin: 0 auto;
+    padding: 2rem;
+    background-color: #f1f1f1;
+    border-radius: 5px;
+  }
+  
+  input {
+    margin: 1rem 0;
+    padding: 1rem;
+    border-radius: 5px;
+    border: none;
+    font-size: 1rem;
+  }
+  
+  button {
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  
+  p {
+    color: rgb(193, 214, 3);
+    margin-top: 1rem;
+    font-size: 1rem;
+  }
+  .R {
+    color: rgb(208, 255, 0);
+    margin-top: 10rem;
+    font-size: 1rem;
+   
+  }
+  .LOG {
+    color: rgb(179, 218, 7);
+    margin: 1rem;
+    font-size: 1rem;
+  }
+  .R2 {
+    color: rgb(208, 255, 0);
+    margin-top: 5rem;
+    font-size: 1rem;
+  }
