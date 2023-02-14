@@ -2,7 +2,11 @@
     background-color: #080808;
     color: rgb(27, 27, 27);
   height: 157px;
+ 
+
+  
   }
+ 
   
   .header__title {
     font-size: 4rem;
@@ -21,7 +25,7 @@
   .header__nav-item {
     margin-left: 1rem;
     color: rgb(48, 48, 48);
-    background-color: transparent;
+    background-color: black;
     border: none;
     font-size: 1rem;
     cursor: pointer;

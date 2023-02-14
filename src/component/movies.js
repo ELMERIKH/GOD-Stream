@@ -1,22 +1,48 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { useNavigate,Link } from 'react-router-dom';
 import './movie.css'
+
+
 function MovieList() {
     const [movies, setMovies] = useState([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const email = localStorage.getItem('email');
+    const navigate = useNavigate()
+    useEffect(() => {
+      console.log(email)
+      async function fetchUserData() {
+        const res = await axios.get(`http://localhost:9000/api/auth/getRole/${email}`);
+        console.log(res.data.role)
+       if(res.data.role!=="admin") {setIsAdmin(false)}
+       else setIsAdmin(true)
+      }
+      fetchUserData();
+    }, []);
+    
     const [page, setPage] = useState(1); // current page number
     const moviesPerPage = 15; // number of movies to display per page
+   // state to control modal visibility
   
     // get current movies based on current page
     const indexOfLastMovie = page * moviesPerPage;
     const indexOfFirstMovie = indexOfLastMovie - moviesPerPage;
     const currentMovies = movies.slice(indexOfFirstMovie, indexOfLastMovie);
-  
-    // handle page change
     
+    const handleDelete = (movieId) => {
+      // make DELETE request to your backend using the movie id
+      axios.delete(`http://localhost:9000/api/delete/${movieId}`)
+        .then(res => {
+          console.log(res.data);
+          // update your frontend state to remove the deleted movie
+          setMovies(movies.filter(movie => movie._id !== movieId));
+        })
+        .catch(err => console.error(err));
+    };
+  
     useEffect(() => {
       async function fetchMovies() {
-        const res = await axios.get("http://localhost:5000/api/movie/getall");
+        const res = await axios.get("http://localhost:9000/api/movie/getall");
         setMovies(res.data.movies);
       }
       fetchMovies();
@@ -35,6 +61,7 @@ function MovieList() {
   
     return (
       <div className='movie-component'>
+         
         {movieRows.map((row, index) => (
           <div key={index} className="movie-row">
             {row.map(movie => (
@@ -43,6 +70,11 @@ function MovieList() {
              <h2> <Link to={`/movie/${movie._id}`}
    className="h2" > {movie.title} </Link></h2>
                 <p className='p'>rating : {movie.rating}</p>
+                {isAdmin && (
+                <button className='btn btn-warning' onClick={() =>   navigate(`/Update/${movie._id}`)}>Update</button>)}
+                {isAdmin && (
+                <button className='btn btn-danger' onClick={() => handleDelete(movie._id)}>Delete</button>)}
+                
               </div>
             ))}
           </div>

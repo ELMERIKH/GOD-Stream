@@ -3,25 +3,32 @@ import axios from "axios";
 import './movie.css'
 import { useParams} from "react-router-dom";
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { Alert } from "bootstrap";
+
+import { useNavigate,Link } from 'react-router-dom'
 function Rate() {
   
     const [rating, setRating] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     let { id } = useParams();
+    const email = localStorage.getItem('email');
+    const navigate = useNavigate()
     const handleRatingChange = (event) => {
       setRating(event.target.value);
     }
     const submitRating = async () => {
       
-    try{
-      const res2 = await axios.patch(`http://localhost:5000/api/rating/${id}`, { rating });
-      console.log(res2.data.message);
+    if(email!==null){
+      const res = await axios.patch(`http://localhost:9000/api/rating/${id}`, { rating });
+      console.log(res.data);
       setSubmitting(true);
-      alert("thank you for rating this movie");
-    }catch (err){
-
-        alert("error");
+      alert("thanks you for rating")
     }
+    else{
+      alert("You need to loggin")
+      navigate('/login')
+    }
+    
      
        
     }
@@ -41,7 +48,7 @@ function Rate() {
             </option>
           ))}
               </select>
-              <button className="rate-button"  disabled={submitting}>Rate</button>
+              <button type = "submit" className="rate-button"  disabled={submitting}>Rate</button>
               </form>
       </div>
     );
@@ -49,4 +56,4 @@ function Rate() {
     
   
     
-  export default Rate;
+  export default  Rate;

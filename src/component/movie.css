@@ -121,3 +121,7 @@
   margin: 1rem;
     
 }
+.pic{
+  width: 100px; /* set width */
+  height: 150px;
+}

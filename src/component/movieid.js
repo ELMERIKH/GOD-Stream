@@ -4,17 +4,21 @@ import './movie.css'
 import { useParams} from "react-router-dom";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import Rate from "./rating";
+import Comments from "./comments";
+
 function Movie() {
   const [movies, setMovie] = useState({});
- 
+  const email = localStorage.getItem('email');
  
   let { id } = useParams();
+  
 
+  
   
   
       useEffect(() => {
     async function fetchMovie() {
-      const res = await axios.get(`http://localhost:5000/api/movie/${id}`);
+      const res = await axios.get(`http://localhost:9000/api/movie/${id}`);
       setMovie(res.data.movies);
       console.log(res.data.movies);
      
@@ -34,7 +38,10 @@ function Movie() {
        <div className="des" ><p>{movies.description}</p>
       <img src={movies.image} alt={movies.title} />
       </div>
-      <Rate/>
+      
+    <div > < Rate/></div>
+    
+     <Comments user={email} movie={id}/>
      
     </div>
   );
