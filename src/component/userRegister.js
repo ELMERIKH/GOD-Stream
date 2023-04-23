@@ -12,7 +12,7 @@ function Register() {
       }
       useEffect(() => {
         if (isLoggedIn) {
-          window.location.href = "/Login";
+          window.location.href = "/login";
         }
       }, [isLoggedIn]);
     

@@ -2,7 +2,7 @@ import React from 'react';
 import './App.css';
 import { AuthProvider } from './component/Auth';
 import Register from './component/userRegister';
-import Login from './component/userlogin';
+
 import MovieList from './component/movies';
 import { BrowserRouter as Router, Route,Routes } from 'react-router-dom';
 import Header from './component/header';

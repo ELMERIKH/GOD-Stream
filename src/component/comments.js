@@ -10,7 +10,7 @@ function Comments({ user,movie}) {
 
  
   
-  
+
 
   useEffect(() => {
     const fetchData = async () => { 
@@ -30,7 +30,7 @@ function Comments({ user,movie}) {
       const res = await axios.post('/api/comments/create', {
         text,
         email: user,
-        movie: movie
+        movieId: movie
         
       });
       alert('comment submited')
