@@ -57,7 +57,7 @@ function MovieList() {
       async function fetchMovies() {
         const moviesData = [];
     for (let i = 1; i <= 100; i++) {
-      const res = await axios.get(`http://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c&page=${i}`);
+      const res = await axios.get(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c&page=${i}`);
       const movies = res.data.results.map((movie) => ({
         id: movie.id,
         title: movie.title,
