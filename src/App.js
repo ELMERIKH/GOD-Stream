@@ -15,6 +15,9 @@ import Auth from './component/Login';
 import Rate from './component/rating';
 import Update from './component/Update';
 import ChatBot from './component/ChatBot';
+import AnimeList from './component/Anime';
+import POKEList from './component/pokemon';
+import Anime from './component/AnimeId';
 function App() {
   return (
     <div><AuthProvider>
@@ -24,6 +27,7 @@ function App() {
          <Header/>
          
           <Routes>
+          <Route exact path="/Anime/:id" element={<Anime/>} />
           <Route exact path="/movie/:id" element={<Movie/>} />
             <Route exact path="/" element={<Home />} />
             <Route exact path="/movies" element={<MovieList />} />
@@ -31,6 +35,8 @@ function App() {
             <Route exact path="/login" element={<Auth/>} />
             <Route exact path="/Update/:id" element={<Update/>} />
             <Route exact path="/ChatBot" element={<ChatBot/>} />
+            <Route exact path="/Anime" element={<AnimeList/>} />
+            <Route exact path="/poke" element={<POKEList/>} />
             <Route element={<Protected/>}>
             <Route exact path="/Create" element={<AddMovie/>} />
             <Route exact path="/movies/:id" element={<Rate/>}/>

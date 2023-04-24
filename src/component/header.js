@@ -52,6 +52,9 @@ const Header = () => {
                 <Link to="/movies" className='L'>Movies</Link>
               </button>
               <button className='btn btn'>
+                <Link to="/Anime" className='L'>Anime</Link>
+              </button>
+              <button className='btn btn'>
                 <Link to="/ChatBot" className='L'>MovieBot</Link>
               </button>
               
