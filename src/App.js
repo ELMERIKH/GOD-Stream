@@ -14,7 +14,7 @@ import Protected from './component/Protected';
 import Auth from './component/Login';
 import Rate from './component/rating';
 import Update from './component/Update';
-
+import ChatBot from './component/ChatBot';
 function App() {
   return (
     <div><AuthProvider>
@@ -30,6 +30,7 @@ function App() {
             <Route exact path="/register" element={<Register/>} />
             <Route exact path="/login" element={<Auth/>} />
             <Route exact path="/Update/:id" element={<Update/>} />
+            <Route exact path="/ChatBot" element={<ChatBot/>} />
             <Route element={<Protected/>}>
             <Route exact path="/Create" element={<AddMovie/>} />
             <Route exact path="/movies/:id" element={<Rate/>}/>
