@@ -87,15 +87,16 @@ function MovieList() {
     });
   
     return (
+      <div className="search-box">
+      <input 
+        type="text"
+        placeholder="Search movies..."
+        value={searchTerm}
+        onChange={event => setSearchTerm(event.target.value)}
+      />
+      
       <div className='movie-component'>
-         <div className="search-box">
-        <input 
-          type="text"
-          placeholder="Search movies..."
-          value={searchTerm}
-          onChange={event => setSearchTerm(event.target.value)}
-        />
-        </div>
+        
          
         {movieRows.map((row, index) => (
           <div key={index} className="movie-row">
@@ -132,7 +133,7 @@ function MovieList() {
         </div>
         </footer>
       </div>
-      
+      </div>
     );
   }
   
