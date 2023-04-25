@@ -10,7 +10,7 @@ function AnimeList() {
     const email = localStorage.getItem('email');
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredMovies, setFilteredMovies] = useState([]);
-
+    const [moviesData, setMoviesData] = useState([]);
     const navigate = useNavigate()
     useEffect(() => {
       console.log(email)
@@ -36,7 +36,6 @@ function AnimeList() {
     });
     setFilteredMovies(filtered);
   }, [movies, searchTerm]);
-
     // get current movies based on current page
     const indexOfLastMovie = page * moviesPerPage;
     const indexOfFirstMovie = indexOfLastMovie - moviesPerPage;
@@ -55,21 +54,21 @@ function AnimeList() {
   
     useEffect(() => {
       async function fetchMovies() {
-        const moviesData = [];
-    for (let i = 1; i <= 30; i++) {
+       
+    for (let i = 1; i <= 250; i++) {
       const res = await axios.get(`https://api.consumet.org/meta/anilist/advanced-search?page=${i}`);
-      const title=res.data.results
+      
     
       
-      const movies = res.data.results.map((movie) => ({
-        id: movie.id,
-        title: movie.title.english || movie.title.romaji,
-        image:movie.image,
-    
-        
-        
-      }));
-      moviesData.push(...movies);
+      if (res.data.results) { // check if results exists
+        const newMovies= res.data.results.map((movie) => ({
+          id: movie.id,
+          title: movie.title.english || movie.title.romaji,
+          image: movie.image
+        }));
+        setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
+        setFilteredMovies((prevMoviesData) => [...prevMoviesData, ...newMovies])
+      }
     }
     const moviesD = [];
     for (let i = 1; i <= 20; i++) {
@@ -82,12 +81,12 @@ function AnimeList() {
          url: movie.url,
       
       }));
-      moviesData.push(...movies);
+      moviesData.push(...moviesD);
     }
-    setMovies(moviesData);
+    
 
 
-    setFilteredMovies(moviesData);
+ 
 
       }
       fetchMovies();
@@ -118,8 +117,8 @@ function AnimeList() {
          
         {movieRows.map((row, index) => (
           <div key={index} className="movie-row">
-            {row.map(movie => (
-              <div key={movie.id} className="movie-card">
+            {row.map((movie) => (
+              <div key={movie.id }  className="movie-card">
                 <img src={movie.image} alt={movie.title} />
              <h2> <Link to={`/Anime/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
