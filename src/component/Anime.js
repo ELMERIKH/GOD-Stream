@@ -56,15 +56,31 @@ function AnimeList() {
     useEffect(() => {
       async function fetchMovies() {
         const moviesData = [];
+    for (let i = 1; i <= 30; i++) {
+      const res = await axios.get(`https://api.consumet.org/meta/anilist/advanced-search?page=${i}`);
+      const title=res.data.results
+    
+      
+      const movies = res.data.results.map((movie) => ({
+        id: movie.id,
+        title: movie.title.english || movie.title.romaji,
+        image:movie.image,
+    
+        
+        
+      }));
+      moviesData.push(...movies);
+    }
+    const moviesD = [];
     for (let i = 1; i <= 20; i++) {
-      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/top-airing?page=${i}`);
+      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/all?page=${i}`);
       const movies = res.data.results.map((movie) => ({
         id: movie.id,
         title: movie.title,
         image:movie.image,
     
          url: movie.url,
-        genres:movie.genres
+      
       }));
       moviesData.push(...movies);
     }
@@ -107,7 +123,7 @@ function AnimeList() {
                 <img src={movie.image} alt={movie.title} />
              <h2> <Link to={`/Anime/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
-                <p className='p'>genres : {movie.genres}</p>
+                
                 {isAdmin && (
                 <button className='btn btn-warning' onClick={() =>   navigate(`/Update/${movie._id}`)}>Update</button>)}
                 {isAdmin && (

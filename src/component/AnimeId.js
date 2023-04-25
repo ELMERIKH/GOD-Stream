@@ -17,15 +17,17 @@ function Anime() {
   const [selectedEpisode, setSelectedEpisode] = useState(0);
 
   const [url, setUrl] = useState(''); 
-  const [ep, setep] = useState('');
+  const [tit, setep] = useState('');
 
  
   let { id } = useParams();
   
   useEffect(() => {
     async function fetchMovie() {
-      const resu = await axios.get(`https://api.consumet.org/anime/gogoanime/info/${id}`);
+      const resu = await axios.get(`https://api.consumet.org/meta/anilist/info/${id}?provider=gogoanime`);
       const r =resu.data.episodes;
+      const rt=resu.data.title;
+      setep(rt.english)
       
       const res = await axios.get(`https://api.consumet.org/anime/gogoanime/servers/${r[selectedEpisode].id}`);
 
@@ -34,6 +36,7 @@ function Anime() {
        
         setUrl(res.data[0].url)
         console.log(selectedEpisode)
+        
       
 
     }
@@ -50,14 +53,14 @@ function Anime() {
         <div className="col-md-4">
           <img
             src={movie.image}
-            alt={movie.title}
+            alt={tit}
             className="img-fluid rounded"
           />
-          <h1 className="rate">Rating :{movie.vote_average}</h1>
-          <h3 className="voters">Total Voters: {movie.vote_count}</h3>
+          <h1 className="rate">Rating :{movie.rating}</h1>
+         
         </div>
         <div className="col-md-8" style={{  color: "#F2F2F2" }}>
-          <h1>{movie.title}</h1>
+          <h1>{tit}</h1>
           <div className="my-4">
             <p>{movie.description}</p>
           </div>
