@@ -3,14 +3,13 @@ import axios from 'axios';
 import { useNavigate,Link } from 'react-router-dom';
 import './movie.css'
 
-
-function MovieList() {
+function AnimeHome() {
     const [movies, setMovies] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const email = localStorage.getItem('email');
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredMovies, setFilteredMovies] = useState([]);
-
+    const [moviesData, setMoviesData] = useState([]);
     const navigate = useNavigate()
     useEffect(() => {
       console.log(email)
@@ -23,24 +22,20 @@ function MovieList() {
       }
       fetchUserData();
     }, []);
-    const handleSearch = (event) => {
-      setSearchTerm(event.target.value);
-    };
+  
+    
+      
+      
+    
   
     const [page, setPage] = useState(1); // current page number
     const moviesPerPage = 20; // number of movies to display per page
    // state to control modal visibility
-   useEffect(() => {
-    const filtered = movies.filter((movie) => {
-      return movie.title.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-    setFilteredMovies(filtered);
-  }, [movies, searchTerm]);
-
+   
     // get current movies based on current page
     const indexOfLastMovie = page * moviesPerPage;
     const indexOfFirstMovie = indexOfLastMovie - moviesPerPage;
-    const currentMovies = filteredMovies.slice(indexOfFirstMovie, indexOfLastMovie);
+    const currentMovies = movies.slice(indexOfFirstMovie, indexOfLastMovie);
 
     const handleDelete = (movieId) => {
       // make DELETE request to your backend using the movie id
@@ -55,21 +50,31 @@ function MovieList() {
   
     useEffect(() => {
       async function fetchMovies() {
-        const moviesData = [];
-    for (let i = 1; i <= 100; i++) {
-      const res = await axios.get(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c&page=${i}`);
-      const movies = res.data.results.map((movie) => ({
-        id: movie.id,
-        title: movie.title,
-        image: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
-        rating: movie.vote_average,
-        overview: movie.overview,
-        releaseDate: movie.release_date,
-      }));
-      moviesData.push(...movies);
+        const Movies = [];
+    
+     
+    for (let i = 1; i <= 10; i++) {
+      const res = await axios.get(`https://api.consumet.org/meta/anilist/recent-episodes?page=${i}`);
+      
+     
+      
+      if (res.data.results) { // check if results exists
+        const newMovies= res.data.results.map((movie) => ({
+          id: movie.id,
+          title: movie.title.english || movie.title.romaji,
+          image: movie.image,
+          episodeNumber:movie.episodeNumber
+        }));
+        
+       Movies.push(...newMovies);
+       
+      }
     }
-    setMovies(moviesData);
-    setFilteredMovies(moviesData);
+    setMovies((prevMoviesData) => [...prevMoviesData, ...Movies]);
+ 
+    console.log(movies);
+    
+    
 
       }
       fetchMovies();
@@ -88,24 +93,24 @@ function MovieList() {
   
     return (
       <div className="search-box">
-      <input 
-        type="text"
-        placeholder="Search movies..."
-        value={searchTerm}
-        onChange={event => setSearchTerm(event.target.value)}
-      />
       
+      <div><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/All" ><button >ALL  </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime" ><button >Lastest </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Popular" ><button >Popular  </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Popular  </button></Link>
+</td></div>
       <div className='movie-component'>
         
          
         {movieRows.map((row, index) => (
           <div key={index} className="movie-row">
-            {row.map(movie => (
-              <div key={movie.id} className="movie-card">
+            {row.map((movie) => (
+              <div key={movie.id }  className="movie-card">
                 <img src={movie.image} alt={movie.title} />
-             <h4> <Link style={{textDecoration: 'none'}}to={`/movie/${movie.id}`}
-   className="h2" > {movie.title} </Link></h4>
-                <p className='p'>rating : {movie.rating}</p>
+             <h2> <Link to={`/Anime/${movie.id}`}
+   className="h2" > {movie.title} </Link></h2>
+   <ul className='ep'>episode:{movie.episodeNumber}</ul>
+                
                 {isAdmin && (
                 <button className='btn btn-warning' onClick={() =>   navigate(`/Update/${movie._id}`)}>Update</button>)}
                 {isAdmin && (
@@ -139,4 +144,4 @@ function MovieList() {
   
 
   
-export default MovieList;
+export default AnimeHome;

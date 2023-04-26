@@ -51,10 +51,10 @@
 }
 
 .pagination button {
-    margin: 0 1rem;
+    margin: 0 1rem; color: rgb(0, 0, 0);
 }
 .p{
-    color: yellow;
+    color: rgb(0, 0, 0);
     box-shadow: 1px 12px 20px ;
     padding: 0px;
     border-radius: 30px;
@@ -68,10 +68,12 @@
     color: aliceblue;
     text-shadow: rgb(0, 0, 0);
     text-transform: capitalize;
-    text-decoration: dashed;
+    text-decoration: none;
+   
    
    
 }
+
 .movie-page {
   background-color: rgba(0,0,0,0.8);
   color: white;
@@ -118,12 +120,14 @@
 }
 .rate-button {
   background-color: #363636;
-  color: rgb(238, 255, 0);
+  color: rgb(255, 208, 0);
   border: none;
   padding: 1% 2%;
   font-size: 1.2em;
   margin-top: 0%;
-  
+
+font-weight: 600;
+font-family: Verdana, Geneva, Tahoma, sans-serif;
 }
 
 .rate-button:hover {
@@ -175,4 +179,13 @@
  width: fit-content;
  margin-block-end: 122px;
  background-color: #3f3e3e;
+}
+h4{
+
+font-style:oblique;
+}
+.ep{
+  color:#00da00;
+ 
+  
 }

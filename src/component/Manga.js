@@ -3,14 +3,13 @@ import axios from 'axios';
 import { useNavigate,Link } from 'react-router-dom';
 import './movie.css'
 
-
-function MovieList() {
+function Manga() {
     const [movies, setMovies] = useState([]);
     const [isAdmin, setIsAdmin] = useState(false);
     const email = localStorage.getItem('email');
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredMovies, setFilteredMovies] = useState([]);
-
+    const [moviesData, setMoviesData] = useState([]);
     const navigate = useNavigate()
     useEffect(() => {
       console.log(email)
@@ -23,9 +22,25 @@ function MovieList() {
       }
       fetchUserData();
     }, []);
-    const handleSearch = (event) => {
-      setSearchTerm(event.target.value);
-    };
+  
+      const handleSearch  = async () => {
+       
+        const res = await axios.get(`https://api.consumet.org/meta/anilist-manga/${searchTerm}`);
+        if (res.data.results) {
+          const newMovies = res.data.results.map((movie) => ({
+            id: movie.id,
+            title: movie.title.english || movie.title.romaji,
+            image: movie.image
+          }));
+        
+          setFilteredMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
+        }
+      };
+      
+      // Add this button element to your JSX
+      
+      
+    
   
     const [page, setPage] = useState(1); // current page number
     const moviesPerPage = 20; // number of movies to display per page
@@ -55,21 +70,39 @@ function MovieList() {
   
     useEffect(() => {
       async function fetchMovies() {
-        const moviesData = [];
-    for (let i = 1; i <= 100; i++) {
-      const res = await axios.get(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c&page=${i}`);
+       
+    for (let i = 1; i <= 250; i++) {
+      const res = await axios.get(`${i}`);
+      
+      const newMovies = [];
+      
+      if (res.data.results) { // check if results exists
+        const newMovies= res.data.results.map((movie) => ({
+          id: movie.id,
+          title: movie.title.english || movie.title.romaji,
+          image: movie.image
+        }));
+        setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
+       
+      }
+    }
+    const moviesD = [];
+    for (let i = 1; i <= 20; i++) {
+      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/all?page=${i}`);
       const movies = res.data.results.map((movie) => ({
         id: movie.id,
         title: movie.title,
-        image: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
-        rating: movie.vote_average,
-        overview: movie.overview,
-        releaseDate: movie.release_date,
+        image:movie.image,
+    
+         url: movie.url,
+      
       }));
-      moviesData.push(...movies);
+      moviesData.push(...moviesD);
     }
-    setMovies(moviesData);
-    setFilteredMovies(moviesData);
+    
+
+
+ 
 
       }
       fetchMovies();
@@ -88,24 +121,24 @@ function MovieList() {
   
     return (
       <div className="search-box">
-      <input 
+      <ul><input 
         type="text"
         placeholder="Search movies..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
       />
-      
+      <button onClick={handleSearch}>Search</button></ul>
       <div className='movie-component'>
         
          
         {movieRows.map((row, index) => (
           <div key={index} className="movie-row">
-            {row.map(movie => (
-              <div key={movie.id} className="movie-card">
+            {row.map((movie) => (
+              <div key={movie.id }  className="movie-card">
                 <img src={movie.image} alt={movie.title} />
-             <h4> <Link style={{textDecoration: 'none'}}to={`/movie/${movie.id}`}
-   className="h2" > {movie.title} </Link></h4>
-                <p className='p'>rating : {movie.rating}</p>
+             <h2> <Link to={`/Manga/${movie.id}`}
+   className="h2" > {movie.title} </Link></h2>
+                
                 {isAdmin && (
                 <button className='btn btn-warning' onClick={() =>   navigate(`/Update/${movie._id}`)}>Update</button>)}
                 {isAdmin && (
@@ -139,4 +172,4 @@ function MovieList() {
   
 
   
-export default MovieList;
+export default Manga;

@@ -8,10 +8,6 @@
   }
  
   
-  .header__title {
-    font-size: 4rem;
-    margin: 0;
-  }
   
   .header__nav {
     display: flex;
@@ -21,42 +17,11 @@
     padding: 0;
     list-style: none;
   }
-  
-  .header__nav-item {
-    margin-left: 1rem;
-    color: rgb(48, 48, 48);
-    background-color: black;
-    border: none;
-    font-size: 1rem;
-    cursor: pointer;
-  }
-  
-  .header__nav-item:hover {
-    background-color: rgb(63, 63, 63);
-    color: #151615;
-    border-radius: 0.3rem;
-  }
-  button {
-    margin-top: 10rem;
-    padding: 0.5rem;
-    background-color: #080808;
-    color: rgb(201, 181, 181);
-    border: none;
-    border-radius: 7px;
-    font-size: 1rem;
-    cursor: pointer;
-  }
   .L{
-    margin-top: 0rem;
-    padding: 0rem;
-    background-color: #000000;
-    color: rgb(221, 217, 0);
-    border: rgb(187, 190, 0);
-    border-radius: 7px;
-    font-size: 2rem;
-  
-    text-decoration: dashed;
-    
 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
+ 
+  
+ 
   

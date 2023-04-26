@@ -23,12 +23,30 @@ function AnimeList() {
       }
       fetchUserData();
     }, []);
-    const handleSearch = (event) => {
-      setSearchTerm(event.target.value);
-    };
+  
+      const handleSearch  = async () => {
+        
+        setFilteredMovies([]);
+        const res = await axios.get(`https://api.consumet.org/meta/anilist/${searchTerm}`);
+        if (res.data.results) {
+          const newMovies = res.data.results.map((movie) => ({
+            id: movie.id,
+            title: movie.title.english || movie.title.romaji,
+            image: movie.image
+          }));
+          
+          setFilteredMovies(newMovies);
+        
+        }
+      };
+      
+      // Add this button element to your JSX
+      
+      
+    
   
     const [page, setPage] = useState(1); // current page number
-    const moviesPerPage = 15; // number of movies to display per page
+    const moviesPerPage = 20; // number of movies to display per page
    // state to control modal visibility
    useEffect(() => {
     const filtered = movies.filter((movie) => {
@@ -36,6 +54,7 @@ function AnimeList() {
     });
     setFilteredMovies(filtered);
   }, [movies, searchTerm]);
+
     // get current movies based on current page
     const indexOfLastMovie = page * moviesPerPage;
     const indexOfFirstMovie = indexOfLastMovie - moviesPerPage;
@@ -54,11 +73,11 @@ function AnimeList() {
   
     useEffect(() => {
       async function fetchMovies() {
-       
+        const Movies = [];
     for (let i = 1; i <= 250; i++) {
       const res = await axios.get(`https://api.consumet.org/meta/anilist/advanced-search?page=${i}`);
       
-    
+     
       
       if (res.data.results) { // check if results exists
         const newMovies= res.data.results.map((movie) => ({
@@ -66,27 +85,15 @@ function AnimeList() {
           title: movie.title.english || movie.title.romaji,
           image: movie.image
         }));
-        setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
-        setFilteredMovies((prevMoviesData) => [...prevMoviesData, ...newMovies])
+     
+       setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
       }
-    }
-    const moviesD = [];
-    for (let i = 1; i <= 20; i++) {
-      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/all?page=${i}`);
-      const movies = res.data.results.map((movie) => ({
-        id: movie.id,
-        title: movie.title,
-        image:movie.image,
-    
-         url: movie.url,
       
-      }));
-      moviesData.push(...moviesD);
     }
     
-
-
- 
+    
+    
+    
 
       }
       fetchMovies();
@@ -104,14 +111,21 @@ function AnimeList() {
     });
   
     return (
+      
       <div className="search-box">
-      <input 
+      
+      <div><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/All" ><button >ALL  </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime" ><button >Lastest </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Popular" ><button >Popular  </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Popular  </button></Link>
+</td></div>
+      <td><input 
         type="text"
         placeholder="Search movies..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
-      />
-      
+      /></td><td>
+      <button onClick={handleSearch}>Search</button></td>
       <div className='movie-component'>
         
          
