@@ -27,11 +27,11 @@ function AnimeList() {
       const handleSearch  = async () => {
         
         setFilteredMovies([]);
-        const res = await axios.get(`https://api.consumet.org/meta/anilist/${searchTerm}`);
+        const res = await axios.get(`https://api.consumet.org/anime/gogoanime/${searchTerm}`);
         if (res.data.results) {
           const newMovies = res.data.results.map((movie) => ({
             id: movie.id,
-            title: movie.title.english || movie.title.romaji,
+            title: movie.title,
             image: movie.image
           }));
           
