@@ -82,10 +82,10 @@ function AnimeList() {
       if (res.data.results) { // check if results exists
         const newMovies= res.data.results.map((movie) => ({
           id: movie.id,
-          title: movie.title.english || movie.title.romaji,
+          title: movie.title.romaji,
           image: movie.image
         }));
-     
+       
        setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
       }
       
@@ -109,7 +109,7 @@ function AnimeList() {
         movieRow = [];
       }
     });
-  
+
     return (
       
       <div className="search-box">
@@ -117,7 +117,7 @@ function AnimeList() {
       <div><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/All" ><button >ALL  </button></Link>
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime" ><button >Lastest </button></Link>
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Popular" ><button >Popular  </button></Link>
-</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Popular  </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Trending  </button></Link>
 </td></div>
       <td><input 
         type="text"

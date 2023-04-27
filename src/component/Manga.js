@@ -28,7 +28,7 @@ function Manga() {
        
         const res = await axios.get(`https://api.consumet.org/manga/mangadex/${searchTerm}`);
       
-        
+        setFilteredMovies([]);
         if (res.data.results ) {
           const movies = res.data.results.map(movie => axios.get(`https://api.consumet.org/manga/mangadex/info/${movie.id}`));
           const resolvedMovies = await Promise.all(movies);
@@ -55,12 +55,7 @@ function Manga() {
     const [page, setPage] = useState(1); // current page number
     const moviesPerPage = 20; // number of movies to display per page
    // state to control modal visibility
-   useEffect(() => {
-    const filtered = movies.filter((movie) => {
-      return movie.title.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-    setFilteredMovies(filtered);
-  }, [movies, searchTerm]);
+  
 
     // get current movies based on current page
     const indexOfLastMovie = page * moviesPerPage;
@@ -81,18 +76,20 @@ function Manga() {
     useEffect(() => {
       async function fetchMovies() {
        
-    for (let i = 1; i <= 250; i++) {
-      const res = await axios.get(`${i}`);
+    for (let i = 1; i <= 10; i++) {
+      const res = await axios.get(`https://api.consumet.org/manga/mangadex/info$o?page=${i}`);
       
       const newMovies = [];
       
       if (res.data.results) { // check if results exists
-        const newMovies= res.data.results.map((movie) => ({
-          id: movie.id,
-          title: movie.title.english || movie.title.romaji,
-          image: movie.image
+        const movies = res.data.results.map(movie => axios.get(`https://api.consumet.org/manga/mangadex/info/${movie.id}`));
+        const resolvedMovies = await Promise.all(movies);
+        const newMovies= resolvedMovies.map((movie) => ({
+          id: movie.data.id,
+          title:  movie.data.title,
+          image: movie.data.image
         }));
-        setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
+        setFilteredMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
        
       }
     }

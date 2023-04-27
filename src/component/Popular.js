@@ -53,15 +53,15 @@ function Popular() {
         const Movies = [];
     
      
-    for (let i = 1; i <= 10; i++) {
-      const res = await axios.get(`https://api.consumet.org/meta/anilist/popular?page=${i}`);
+    for (let i = 1; i <= 100; i++) {
+      const res = await axios.get(`https://api.consumet.org/anime/zoro/top-airing?page=${i}`);
       
      
       
       if (res.data.results) { // check if results exists
         const newMovies= res.data.results.map((movie) => ({
           id: movie.id,
-          title: movie.title.english || movie.title.romaji,
+          title: movie.title,
           image: movie.image,
           
         }));
@@ -98,7 +98,7 @@ function Popular() {
       <div><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/All" ><button >ALL  </button></Link>
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime" ><button >Lastest </button></Link>
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Popular" ><button >Popular  </button></Link>
-</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Popular  </button></Link>
+</td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Trending </button></Link>
 </td></div>
       <div className='movie-component'>
         
