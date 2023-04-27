@@ -24,10 +24,10 @@ function Anime() {
   
   useEffect(() => {
     async function fetchMovie() {
-      const resu = await axios.get(`https://api.consumet.org/meta/anilist/info/${id}?provider=gogoanime`);
+      const resu = await axios.get(`https://api.consumet.org/anime/gogoanime/info/${id}`);
       const r =resu.data.episodes;
       const rt=resu.data.title;
-      setep(rt.english)
+      setep(rt)
       
       const res = await axios.get(`https://api.consumet.org/anime/gogoanime/servers/${r[selectedEpisode].id}`);
 
@@ -36,6 +36,7 @@ function Anime() {
        
         setUrl(res.data[0].url)
         console.log(selectedEpisode)
+      
         
       
 

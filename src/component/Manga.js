@@ -9,7 +9,8 @@ function Manga() {
     const email = localStorage.getItem('email');
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredMovies, setFilteredMovies] = useState([]);
-    const [moviesData, setMoviesData] = useState([]);
+    const [img, setimg] = useState([]);
+
     const navigate = useNavigate()
     useEffect(() => {
       console.log(email)
@@ -25,16 +26,25 @@ function Manga() {
   
       const handleSearch  = async () => {
        
-        const res = await axios.get(`https://api.consumet.org/meta/anilist-manga/${searchTerm}`);
-        if (res.data.results) {
-          const newMovies = res.data.results.map((movie) => ({
-            id: movie.id,
-            title: movie.title.english || movie.title.romaji,
-            image: movie.image
-          }));
+        const res = await axios.get(`https://api.consumet.org/manga/mangadex/${searchTerm}`);
+      
         
+        if (res.data.results ) {
+          const movies = res.data.results.map(movie => axios.get(`https://api.consumet.org/manga/mangadex/info/${movie.id}`));
+          const resolvedMovies = await Promise.all(movies);
+          const newMovies = resolvedMovies.map(res => ({
+            id: res.data.id,
+            title: res.data.title ,
+            image: res.data.image,
+          }));
+       
+          
           setFilteredMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
+
+          
+        
         }
+        
       };
       
       // Add this button element to your JSX
@@ -85,19 +95,6 @@ function Manga() {
         setMovies((prevMoviesData) => [...prevMoviesData, ...newMovies]);
        
       }
-    }
-    const moviesD = [];
-    for (let i = 1; i <= 20; i++) {
-      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/all?page=${i}`);
-      const movies = res.data.results.map((movie) => ({
-        id: movie.id,
-        title: movie.title,
-        image:movie.image,
-    
-         url: movie.url,
-      
-      }));
-      moviesData.push(...moviesD);
     }
     
 

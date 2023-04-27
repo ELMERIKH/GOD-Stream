@@ -54,14 +54,14 @@ function Trending() {
     
      
     for (let i = 1; i <= 10; i++) {
-      const res = await axios.get(`https://api.consumet.org/meta/anilist/trending?page=${i}`);
+      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/top-airing?page=${i}`);
       
      
       
       if (res.data.results) { // check if results exists
         const newMovies= res.data.results.map((movie) => ({
           id: movie.id,
-          title: movie.title.english || movie.title.romaji,
+          title: movie.title,
           image: movie.image,
       
         }));

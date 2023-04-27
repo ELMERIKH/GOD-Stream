@@ -6,50 +6,69 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import Rate from "./rating";
 import Comments from "./comments";
 import { Container } from "react-bootstrap";
-import ReactPlayer from "react-player";
 
 
 
 function MangaId() {
-  const [movie, setMovie] = useState({});  
+  const [movie, setMovie] = useState('');  
   
   const email = localStorage.getItem('email');
   const [selectedEpisode, setSelectedEpisode] = useState(0);
-   
-  const [url, setUrl] = useState(''); 
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [url, setUrl] = useState({}); 
   const [tit, setep] = useState('');
   const [ti, sete] = useState('');
+  const [img, setimg] = useState(``);
+
+  
 
  
   let { id } = useParams();
   
   useEffect(() => {
     async function fetchMovie() {
-      const resu = await axios.get(`https://api.consumet.org/meta/anilist-manga/info/${id}?provider=mangahere`);
+      const resu = await axios.get(`https://api.consumet.org/manga/mangadex/info/${id}`);
     
       
       const r =resu.data.chapters;
-      const rt=resu.data.title;
+     
       setep(resu.data.image);
-      sete(rt.romaji)
-      console.log(url);
+      sete(resu.data.title)
+     console.log(r)
       
-      const res = await axios.get(`https://api.consumet.org/meta/anilist-manga/read?chapterId=${r[selectedEpisode].id}&provider=mangahere`);
+      const res = await axios.get(`https://api.mangadex.org/at-home/server/${r[selectedEpisode].id}`);
 
+      const rt=res.data.chapter;
+      
+      setimg(`https://uploads.mangadex.org/data/${rt.hash}/${rt.data[currentIndex]}`);
 
-      setMovie(resu.data);
-       
-        setUrl(res.data[0].url)
-        console.log(selectedEpisode)
+      setMovie(resu.data.chapters);
+
+    
+        setUrl(rt);
+        console.log(selectedEpisode);
+        console.log(r[selectedEpisode].id);
+        console.log(resu.data);
         
-      
+        
+     
 
     }
 
     fetchMovie();
    
-  }, [id, selectedEpisode]);
+  }, [id, selectedEpisode,currentIndex]);
+  const handleNextClick = () => {
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % url.data.length);
+  };
 
+  const handlePrevClick = () => {
+    setCurrentIndex((prevIndex) =>
+      prevIndex === 0 ? url.data.length - 1 : prevIndex - 1
+    );
+  };
+
+  
  
   return ( <body style={{ backgroundColor: "#2E2E2E" }}> 
    
@@ -69,21 +88,26 @@ function MangaId() {
           <div className="my-4">
             <p>{movie.description}</p>
           </div>
-         
-            
-         
           
-          <select value={selectedEpisode} onChange={(e) => setSelectedEpisode(e.target.value)&& console.log(e.target.value)}>
-  {movie.episodes && movie.episodes.map((episode, index) => (
-    <option key={index} value={episode.number-1}>
-      Episode : {episode.number}
+          
+          <select value={selectedEpisode} onChange={(e) => setSelectedEpisode(e.target.value)}>
+  {movie && movie.map((episode, index) => (
+    <option key={index} value={index}>
+      Episode : {episode.title}  
     </option>
+  
+
     
   ))}
 
-</select>
-  
+</select> PAGE : {currentIndex}
 
+ <div>
+ <td><button onClick={handlePrevClick}>Prev</button></td><td><button onClick={handleNextClick}>Next</button></td>
+
+  {url && <img src={img} alt="" width="600" height="800"/>}
+  
+ </div>
 
           </div>
           <div className="my-4">
