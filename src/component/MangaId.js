@@ -27,7 +27,11 @@ function MangaId() {
   
   useEffect(() => {
     async function fetchMovie() {
-      const resu = await axios.get(`https://api.consumet.org/manga/mangadex/info/${id}`);
+      const resu = await axios.get(`https://api.consumet.org/manga/mangadex/info/${id}`, {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     
       
       const r =resu.data.chapters;
@@ -36,11 +40,15 @@ function MangaId() {
       sete(resu.data.title)
      console.log(r)
       
-      const res = await axios.get(`https://api.mangadex.org/at-home/server/${r[selectedEpisode].id}`);
+      const res = await axios.get(`https://api.allorigins.win/raw?url=https://api.mangadex.org/at-home/server/${r[selectedEpisode].id}`
+       
+      );
 
       const rt=res.data.chapter;
       
-      setimg(`https://uploads.mangadex.org/data/${rt.hash}/${rt.data[currentIndex]}`);
+      setimg(`https://api.allorigins.win/raw?url=https://uploads.mangadex.org/data/${rt.hash}/${rt.data[currentIndex]}` 
+       
+      );
 
       setMovie(resu.data.chapters);
 

@@ -85,20 +85,16 @@ function Manga() {
       async function fetchMovies() {
        
     for (let i = 1; i <= 10; i++) {
-      const res = await axios.get(`https://api.consumet.org/manga/mangadex/info$o?page=${i}`, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
+      const res = await axios.get(`https://api.consumet.org/manga/mangadex/info$o?page=${i}`
+       
+      );
       
       const newMovies = [];
       
       if (res.data.results) { // check if results exists
-        const movies = res.data.results.map(movie => axios.get(`https://api.consumet.org/manga/mangadex/info/${movie.id}`, {
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-          },
-        }));
+        const movies = res.data.results.map(movie => axios.get(`https://api.allorigins.win/raw?url=https://api.consumet.org/manga/mangadex/info/${movie.id}`
+         
+        ));
         const resolvedMovies = await Promise.all(movies);
         const newMovies= resolvedMovies.map((movie) => ({
           id: movie.data.id,
