@@ -92,7 +92,10 @@ function Manga() {
       const newMovies = [];
       
       if (res.data.results) { // check if results exists
-        const movies = res.data.results.map(movie => axios.get(`https://api.allorigins.win/raw?url=https://api.consumet.org/manga/mangadex/info/${movie.id}`
+        const movies = res.data.results.map(movie => axios.get(`https://api.allorigins.win/raw?url=https://api.consumet.org/manga/mangadex/info/${movie.id}`, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          }}
          
         ));
         const resolvedMovies = await Promise.all(movies);

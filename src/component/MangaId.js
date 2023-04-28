@@ -40,13 +40,19 @@ function MangaId() {
       sete(resu.data.title)
      console.log(r)
       
-      const res = await axios.get(`https://api.allorigins.win/raw?url=https://api.mangadex.org/at-home/server/${r[selectedEpisode].id}`
+      const res = await axios.get(`https://api.allorigins.win/raw?url=https://api.mangadex.org/at-home/server/${r[selectedEpisode].id}`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }}
        
       );
 
       const rt=res.data.chapter;
       
-      setimg(`https://api.allorigins.win/raw?url=https://uploads.mangadex.org/data/${rt.hash}/${rt.data[currentIndex]}` 
+      setimg(`https://api.allorigins.win/raw?url=https://uploads.mangadex.org/data/${rt.hash}/${rt.data[currentIndex]}` , {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }}
        
       );
 
