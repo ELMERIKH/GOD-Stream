@@ -16,6 +16,7 @@ function Manga() {
       console.log(email)
       async function fetchUserData() {
         
+        
         const res = await axios.get(`http://localhost:9000/api/auth/getRole/${email}`);
         console.log(res.data.role)
        if(res.data.role!=="admin") {setIsAdmin(false)}
@@ -82,6 +83,7 @@ function Manga() {
     };
   
     useEffect(() => {
+      
       async function fetchMovies() {
        
     for (let i = 1; i <= 10; i++) {
@@ -92,12 +94,10 @@ function Manga() {
       const newMovies = [];
       
       if (res.data.results) { // check if results exists
-        const movies = res.data.results.map(movie => axios.get(`https://api.allorigins.win/raw?url=https://api.consumet.org/manga/mangadex/info/${movie.id}`, {
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-          }}
+        const movies = res.data.results.map(movie => axios.get(`https://api.allorigins.win/raw?url=https://api.consumet.org/manga/mangadex/info/${movie.id}`
          
         ));
+        
         const resolvedMovies = await Promise.all(movies);
         const newMovies= resolvedMovies.map((movie) => ({
           id: movie.data.id,

@@ -23,6 +23,8 @@ import Popular from './component/Popular';
 import Trending from './component/Trending';
 import Manga from './component/Manga';
 import MangaId from './component/MangaId';
+import TVList from './component/TV';
+import TV from './component/TVid';
 function App() {
   return (
     <div><AuthProvider>
@@ -34,8 +36,11 @@ function App() {
           <Routes>
           <Route exact path="/Anime/:id" element={<Anime/>} />
           <Route exact path="/movie/:id" element={<Movie/>} />
+          <Route exact path="/tv/:id" element={<TV />} />
           <Route exact path="/Manga/:id" element={<MangaId/>} />
             <Route exact path="/" element={<Home />} />
+            <Route exact path="/tv" element={<TVList />} />
+
             <Route exact path="/movies" element={<MovieList />} />
             <Route exact path="/register" element={<Register/>} />
             <Route exact path="/login" element={<Auth/>} />

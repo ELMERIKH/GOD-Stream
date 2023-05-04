@@ -10,6 +10,8 @@ function MovieList() {
     const email = localStorage.getItem('email');
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredMovies, setFilteredMovies] = useState([]);
+    const [Url, setUrl] = useState('https://api.themoviedb.org/3/movie/now_playing?api_key=152f41397d36a9af171b938124f0281c');
+
 
     const navigate = useNavigate()
     useEffect(() => {
@@ -23,20 +25,13 @@ function MovieList() {
       }
       fetchUserData();
     }, []);
-    const handleSearch = (event) => {
-      setSearchTerm(event.target.value);
-    };
+    
   
     const [page, setPage] = useState(1); // current page number
     const moviesPerPage = 20; // number of movies to display per page
    // state to control modal visibility
-   useEffect(() => {
-    const filtered = movies.filter((movie) => {
-      return movie.title.toLowerCase().includes(searchTerm.toLowerCase());
-    });
-    setFilteredMovies(filtered);
-  }, [movies, searchTerm]);
-
+  
+  
     // get current movies based on current page
     const indexOfLastMovie = page * moviesPerPage;
     const indexOfFirstMovie = indexOfLastMovie - moviesPerPage;
@@ -52,29 +47,49 @@ function MovieList() {
         })
         .catch(err => console.error(err));
     };
-  
+    const handleUrlChange = (prop) => {
+      setUrl(prop);
+      setPage(1);
+    };
     useEffect(() => {
       async function fetchMovies() {
-        const moviesData = [];
-    for (let i = 1; i <= 100; i++) {
-      const res = await axios.get(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c&page=${i}`);
-      const movies = res.data.results.map((movie) => ({
-        id: movie.id,
-        title: movie.title,
-        image: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
-        rating: movie.vote_average,
-        overview: movie.overview,
-        releaseDate: movie.release_date,
-      }));
-      moviesData.push(...movies);
-    }
-    setMovies(moviesData);
-    setFilteredMovies(moviesData);
-
+        let moviesData = [];
+  
+        if (searchTerm !== '') {
+          // If searchTerm is not empty, make a search request
+          const res = await axios.get(`https://api.themoviedb.org/3/search/movie?api_key=152f41397d36a9af171b938124f0281c&query=${searchTerm}`);
+          if (res.data.results) {
+            moviesData = res.data.results.map((movie) => ({
+              id: movie.id,
+              title: movie.title,
+              image: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+              rating: movie.vote_average,
+              overview: movie.overview,
+              releaseDate: movie.release_date,
+            }));
+          }
+        } else {
+          // If searchTerm is empty, fetch all the movies
+          for (let i = 1; i <= 100; i++) {
+            const res = await axios.get(`${Url}&page=${i}`);
+            const movies = res.data.results.map((movie) => ({
+              id: movie.id,
+              title: movie.title,
+              image: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+              rating: movie.vote_average,
+              overview: movie.overview,
+              releaseDate: movie.release_date,
+            }));
+            moviesData.push(...movies);
+          }
+        }
+        setMovies(moviesData);
+        setFilteredMovies(moviesData);
       }
+  
       fetchMovies();
-     
-    }, []);
+    }, [searchTerm,Url]);
+  
   
     const movieRows = [];
     let movieRow = [];
@@ -88,13 +103,17 @@ function MovieList() {
   
     return (
       <div className="search-box">
-      <input 
+     <input 
         type="text"
         placeholder="Search movies..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
       />
-      
+         <div><td>               <button onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/top_rated?api_key=152f41397d36a9af171b938124f0281c`)} >Top Rated  </button>
+</td><td>               <button onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/now_playing?api_key=152f41397d36a9af171b938124f0281c`)} >Lastest </button>
+</td><td>              <button onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c`)} >Popular  </button>
+
+</td></div>
       <div className='movie-component'>
         
          

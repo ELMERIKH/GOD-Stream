@@ -117,13 +117,13 @@ const Header = () => {
               
               
              
-                <Link style={{textDecoration: 'none',color:'black'}}to="/movies" className='L'> <button className='btn'>Movies </button></Link>
-             
+                <Link style={{textDecoration: 'none',color:'black'}}to="/Movies" className='L'> <button className='btn'>Movies </button></Link>
+                <Link style={{textDecoration: 'none',color:'black'}}to="/tv" className='L'> <button className='btn'>Shows</button></Link>
               
                 <Link style={{textDecoration: 'none',color:'black'}} to="/Anime" className='L'><button className='btn'>Anime</button></Link>
            
               
-                <Link style={{textDecoration: 'none',color:'black'}} to="/ChatBot" className='L'><button className='btn'>MovieBot  </button></Link>
+                <Link style={{textDecoration: 'none',color:'black'}} to="/ChatBot" className='L'><button className='btn'>MovieBot</button></Link>
             
                 <Link style={{textDecoration: 'none',color:'black'}} to="/Manga" className='L'><button className='btn'>Manga </button></Link>
 
