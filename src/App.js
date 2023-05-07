@@ -27,7 +27,8 @@ import TVList from './component/TV';
 import TV from './component/TVid';
 function App() {
   return (
-    <div><AuthProvider>
+    <div>
+      <AuthProvider>
          <Router>
         
             
@@ -62,6 +63,7 @@ function App() {
         <Footer/>
     </Router>
     </AuthProvider>
+    
     </div>
   );
 }

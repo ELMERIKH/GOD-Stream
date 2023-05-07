@@ -150,9 +150,13 @@ function MovieList() {
             Next
           </button>
         </div>
+        
+      
         </footer>
       </div>
+      
       </div>
+      
     );
   }
   
