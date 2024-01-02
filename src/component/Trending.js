@@ -54,7 +54,7 @@ function Trending() {
     
      
     for (let i = 1; i <= 10; i++) {
-      const res = await axios.get(`https://api.consumet.org/anime/gogoanime/top-airing?page=${i}`);
+      const res = await axios.get(`https://consumet-api-m8mf.onrender.com/anime/gogoanime/top-airing?page=${i}`);
       
      
       
