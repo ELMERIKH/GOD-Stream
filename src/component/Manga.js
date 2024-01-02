@@ -27,7 +27,7 @@ function Manga() {
   
       const handleSearch  = async () => {
        
-        const res = await axios.get(`https://api.consumet.org/manga/mangadex/${searchTerm}`, {
+        const res = await axios.get(`https://consumet-api-m8mf.onrender.com/manga/mangadex/${searchTerm}`, {
           headers: {
             'Access-Control-Allow-Origin': '*',
           },
@@ -35,7 +35,7 @@ function Manga() {
       
         setFilteredMovies([]);
         if (res.data.results ) {
-          const movies = res.data.results.map(movie => axios.get(`https://api.consumet.org/manga/mangadex/info/${movie.id}`, {
+          const movies = res.data.results.map(movie => axios.get(`https://consumet-api-m8mf.onrender.com/manga/mangadex/info/${movie.id}`, {
             headers: {
               'Access-Control-Allow-Origin': '*',
             },
@@ -87,14 +87,14 @@ function Manga() {
       async function fetchMovies() {
        
     for (let i = 1; i <= 10; i++) {
-      const res = await axios.get(`https://api.consumet.org/manga/mangadex/info$o?page=${i}`
+      const res = await axios.get(`https://consumet-api-m8mf.onrender.com/manga/mangadex/info$o?page=${i}`
        
       );
       
       const newMovies = [];
       
       if (res.data.results) { // check if results exists
-        const movies = res.data.results.map(movie => axios.get(`https://api.consumet.org/manga/mangadex/info/${movie.id}`
+        const movies = res.data.results.map(movie => axios.get(`https://consumet-api-m8mf.onrender.com/manga/mangadex/info/${movie.id}`
          
         ));
         
