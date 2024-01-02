@@ -27,7 +27,7 @@ function AnimeList() {
       const handleSearch  = async () => {
         
         setFilteredMovies([]);
-        const res = await axios.get(`https://api.consumet.org/anime/gogoanime/${searchTerm}`);
+        const res = await axios.get(`https://consumet-api-m8mf.onrender.com/anime/gogoanime/${searchTerm}`);
         if (res.data.results) {
           const newMovies = res.data.results.map((movie) => ({
             id: movie.id,
@@ -76,7 +76,7 @@ function AnimeList() {
         let moviesData = [];
         if (searchTerm !== '') {
           // If searchTerm is not empty, make a search request
-          const res = await axios.get(`https://api.consumet.org/anime/gogoanime/${searchTerm}`);
+          const res = await axios.get(`https://consumet-api-m8mf.onrender.com/anime/gogoanime/${searchTerm}`);
         if (res.data.results) {
           moviesData = res.data.results.map((movie) => ({
             id: movie.id,
@@ -88,7 +88,7 @@ function AnimeList() {
         } else {
           // If searchTerm is empty, fetch all the movies
           for (let i = 1; i <= 250; i++) {
-            const res = await axios.get(`https://api.consumet.org/meta/anilist/advanced-search?page=${i}`);
+            const res = await axios.get(`https://consumet-api-m8mf.onrender.com/meta/anilist/advanced-search?page=${i}`);
             
            
             
