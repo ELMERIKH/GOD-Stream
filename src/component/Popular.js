@@ -54,7 +54,7 @@ function Popular() {
     
      
     for (let i = 1; i <= 100; i++) {
-      const res = await axios.get(`https://api.consumet.org/anime/zoro/top-airing?page=${i}`);
+      const res = await axios.get(`https://consumet-api-m8mf.onrender.com/anime/zoro/top-airing?page=${i}`);
       
      
       
