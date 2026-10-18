@@ -122,11 +122,18 @@
     top: calc(100% + 1px);
     left: 0;
     right: 0;
-    padding: 0.75rem 1rem 1rem;
+    z-index: 50;
+    padding: 0.85rem 1rem 1rem;
     flex-direction: column;
     align-items: stretch;
-    background: rgba(12, 12, 14, 0.98);
+    background: #121216;
     border-bottom: 1px solid var(--line);
+    box-shadow: 0 22px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .header__nav .nav-link {
+    color: var(--text);
+    padding: 0.7rem 0.35rem;
   }
 
   .header__nav.is-open {
