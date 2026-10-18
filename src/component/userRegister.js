@@ -33,8 +33,8 @@ function Register() {
       };
     
       return (
-        <div>
-          <form onSubmit={handleSubmit}>
+        <div className="auth-screen">
+          <form className="panel-form" onSubmit={handleSubmit}>
             <input
               type="text"
               placeholder="Username"

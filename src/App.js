@@ -27,13 +27,11 @@ import TVList from './component/TV';
 import TV from './component/TVid';
 function App() {
   return (
-    <div>
+    <div className="app-shell">
       <AuthProvider>
          <Router>
-        
-            
          <Header/>
-         
+         <main className="app-main">
           <Routes>
           <Route exact path="/Anime/:id" element={<Anime/>} />
           <Route exact path="/movie/:id" element={<Movie/>} />
@@ -60,6 +58,7 @@ function App() {
             </Route>
             
           </Routes>
+         </main>
         <Footer/>
     </Router>
     </AuthProvider>

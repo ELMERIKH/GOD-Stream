@@ -61,8 +61,8 @@ function Login() {
   };
 
   return (
-    <div>
-      <form onSubmit={handleSubmit }>
+    <div className="auth-screen">
+      <form className="panel-form" onSubmit={handleSubmit }>
         <input
           type="email"
           placeholder="Email"

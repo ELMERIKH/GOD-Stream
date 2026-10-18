@@ -1,57 +1,87 @@
-.form-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  form {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 50%;
-    margin: 0 auto;
-    padding: 2rem;
-    background-color: #f1f1f1;
-    border-radius: 5px;
-  }
-  
-  input {
-    margin: 1rem 0;
-    padding: 1rem;
-    border-radius: 5px;
-    border: none;
-    font-size: 1rem;
-  }
-  
-  button {
-    margin-top: 1rem;
-    padding: 0.5rem;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 1rem;
-    cursor: pointer;
-  }
-  
-  p {
-    color: rgb(193, 214, 3);
-    margin-top: 1rem;
-    font-size: 1rem;
-  }
-  .R {
-    color: rgb(208, 255, 0);
-    margin-top: 10rem;
-    font-size: 1rem;
-   
-  }
-  .LOG {
-    color: rgb(179, 218, 7);
-    margin: 1rem;
-    font-size: 1rem;
-  }
-  .R2 {
-    color: rgb(208, 255, 0);
-    margin-top: 5rem;
-    font-size: 1rem;
-  }
+.auth-screen {
+  width: min(560px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 3.5rem 0 4.5rem;
+}
+
+.auth-screen h1,
+.test-success {
+  margin: 0 0 1.25rem;
+  text-align: center;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.auth-screen form,
+.form-container form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.85rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.auth-screen input,
+.auth-screen .form-control,
+.form-container input {
+  width: 100%;
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #0e0e12;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.auth-screen label,
+.form-group label {
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.auth-screen button,
+.LOG,
+.R2 {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f0c57a, var(--gold-deep));
+  color: #1a1206;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-screen > p {
+  margin-top: 1rem;
+  text-align: center;
+  color: var(--gold);
+}
+
+.R,
+.R2,
+.LOG {
+  text-align: center;
+}
+
+.R {
+  display: inline-block;
+  margin: 0;
+  color: #1a1206;
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-screen a.R {
+  color: #1a1206;
+}

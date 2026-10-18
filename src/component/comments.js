@@ -46,7 +46,7 @@ function Comments({ user,movie}) {
   return (
     <Container>
 
-<form onSubmit={handleSubmit}>
+<form className="panel-form comment-form" onSubmit={handleSubmit}>
       <input
         type="text"
         placeholder="Enter comment text"
@@ -59,7 +59,7 @@ function Comments({ user,movie}) {
     </form>
       
       <h2>Comments</h2>
-      <div>
+      <div className="comment-list">
       {comments.map(comment => (
         <div key={comment._id}>
           <h3>{comment.email}</h3>
