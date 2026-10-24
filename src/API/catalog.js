@@ -1,15 +1,26 @@
 // Live sources probed from this environment:
-// AniList, Kitsu, and MangaDex return titles plus cover URLs and allow browser CORS.
-// Not wired: Jikan (connection timeout), MangaMint (bot-check HTML), CopyManga
-// (empty list or "upgrade the app", no titles), Sankanime (Cloudflare challenge),
-// Consumet (HTTP 500). Nekidev/anime-api is a Python wrapper library, not a host.
+// AniList, Kitsu, and MangaDex: titles, covers, and (MangaDex) chapter pages. Browser CORS.
+// Consumet https://consumet-api-m8mf.onrender.com : MangaPill search/info/read return
+// chapter image URLs (JPEG 200). Gogoanime search is an empty list. Zoro and AnimePahe
+// return HTTP 500. Used for manga pages and a fail-fast episode lookup, never the grid.
+// Shikimori https://shikimori.io/api : CORS *, YouTube trailer/opening embeds.
+// Sanka https://www.sankavollerei.web.id : CORS *. Anime episode servers and
+// Komikstation/Kiryuu chapter images. DesuStream frames are blocked; Filedon embeds load.
+// Not wired: AnimePahe (the public search answers with an anti-bot HTML page, and the
+// published API says it is waiting on a Cloudflare UAM fix — no bypass is included).
+// Fetch-Stream https://fetch-stream.vercel.app returns Vercel DEPLOYMENT_NOT_FOUND.
+// Jikan, MangaMint, CopyManga, sankanime.web.id, HiAnime, AllAnime, and Crunchyroll
+// did not return a usable public response.
 
 const ANILIST = "https://graphql.anilist.co";
+const SANKA = "https://www.sankavollerei.web.id";
 const KITSU = "https://kitsu.io/api/edge";
 const MANGADEX = "https://api.mangadex.org";
+const CONSUMET = "https://consumet-api-m8mf.onrender.com";
+const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
-const CACHE_KEY = "streamgod.catalog.v1";
-const HTTP_KEY = "streamgod.http.v1";
+const CACHE_KEY = "streamgod.catalog.v2";
+const HTTP_KEY = "streamgod.http.v2";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -40,6 +51,11 @@ export function sourceLabel(source) {
       anilist: "AniList",
       kitsu: "Kitsu",
       mangadex: "MangaDex",
+      sanka: "Sanka",
+      kiryuu: "Kiryuu",
+      komikstation: "Komikstation",
+      mangapill: "MangaPill",
+      shikimori: "Shikimori",
     }[source] || source || "Catalog"
   );
 }
@@ -75,12 +91,48 @@ function plainText(value) {
     .trim();
 }
 
+function compactTitle(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function sameWork(left, right) {
-  const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-  const a = normalize(left);
-  const b = normalize(right);
+  const a = compactTitle(left);
+  const b = compactTitle(right);
   if (!a || !b) return false;
   return a === b || a.includes(b) || b.includes(a);
+}
+
+function titleRank(wanted, found) {
+  const a = compactTitle(wanted);
+  const b = compactTitle(found);
+  if (!a || !b) return 0;
+  if (b.includes("novel") && !a.includes("novel")) return 0;
+  if (a === b) return 100;
+  if (b.startsWith(a) && b.length - a.length <= 16) return 90;
+  if (a.startsWith(b) && a.length - b.length <= 16) return 85;
+  return 0;
+}
+
+function bestTitleMatch(title, rows, readTitle) {
+  let best = null;
+  let bestScore = 0;
+  rows.forEach((row) => {
+    const score = titleRank(title, readTitle(row));
+    if (score > bestScore) {
+      best = row;
+      bestScore = score;
+    }
+  });
+  return bestScore >= 80 ? best : null;
+}
+
+function youtubeId(url) {
+  const match = String(url || "").match(/(?:youtu\.be\/|embed\/|v=|shorts\/)([A-Za-z0-9_-]{6,})/);
+  return match ? match[1] : "";
+}
+
+function youtubeEmbed(id) {
+  return `https://www.youtube-nocookie.com/embed/${id}`;
 }
 
 function remember(items) {
@@ -339,9 +391,11 @@ async function anilistDetail(rawId, type) {
       description(asHtml: false)
       coverImage { extraLarge large }
       averageScore
+      idMal
       episodes
       chapters
       status
+      trailer { id site }
       streamingEpisodes { title thumbnail url site }
     }
   }`;
@@ -358,6 +412,8 @@ async function anilistDetail(rawId, type) {
     throw new Error(payload.errors?.[0]?.message || "AniList title was not found");
   }
   const item = anilistItem(media, type);
+  const trailer = media.trailer;
+  const trailerId = trailer && String(trailer.site || "").toLowerCase() === "youtube" ? trailer.id : "";
   const streamed = (media.streamingEpisodes || []).map((episode, index) => ({
     number: index + 1,
     title: episode.title || `Episode ${index + 1}`,
@@ -378,6 +434,8 @@ async function anilistDetail(rawId, type) {
   const chapterTotal = Number(media.chapters) || 0;
   const detail = {
     ...item,
+    malId: media.idMal || null,
+    preview: trailerId ? { label: "Trailer", embed: youtubeEmbed(trailerId) } : null,
     episodes,
     chapters:
       type === "MANGA"
@@ -594,8 +652,69 @@ async function mangadexDetail(rawId) {
   return detail;
 }
 
+export function clearCatalogCache() {
+  responseMemory.clear();
+  inflight.clear();
+  memoryCache.clear();
+  try {
+    sessionStorage.removeItem(HTTP_KEY);
+    sessionStorage.removeItem(CACHE_KEY);
+  } catch {
+    // sessionStorage can be unavailable in private browsing.
+  }
+}
+
+function pickPlayableServer(server) {
+  const preferred = ["filedon", "vidhide", "mega", "blogs"];
+  const all = [];
+  (server?.qualities || []).forEach((quality) => {
+    (quality.serverList || []).forEach((entry) => all.push(entry));
+  });
+  return [...all].sort((left, right) => {
+    const rank = (entry) => {
+      const name = String(entry.title || "").toLowerCase();
+      const index = preferred.findIndex((token) => name.includes(token));
+      return index === -1 ? preferred.length : index;
+    };
+    return rank(left) - rank(right);
+  })[0] || null;
+}
+
+export function loadEpisodeEmbed(episodeId) {
+  if (!episodeId) return Promise.resolve("");
+  return cached(`sanka:embed:${episodeId}`, async () => {
+    const episode = await fetchJson(`${SANKA}/anime/episode/${encodeURIComponent(episodeId)}`);
+    const server = pickPlayableServer(episode?.data?.server);
+    if (server?.serverId) {
+      const resolved = await fetchJson(`${SANKA}/anime/server/${encodeURIComponent(server.serverId)}`);
+      if (resolved?.data?.url) return resolved.data.url;
+    }
+    return episode?.data?.defaultStreamingUrl || "";
+  }, 10 * 60 * 1000);
+}
+
 export function getMangaPages(chapterId) {
   if (!chapterId) return Promise.resolve([]);
+  if (String(chapterId).startsWith("komikstation:")) {
+    const slug = String(chapterId).slice("komikstation:".length);
+    return cached(`ks:pages:${slug}`, async () => {
+      const payload = await fetchJson(`${SANKA}/comic/komikstation/chapter/${encodeURIComponent(slug)}`, {
+        timeout: 8000,
+      });
+      return Array.isArray(payload?.images) ? payload.images : [];
+    }, 8 * 60 * 1000);
+  }
+  if (String(chapterId).startsWith("mangapill:")) {
+    const raw = String(chapterId).slice("mangapill:".length);
+    return cached(`mp:pages:${raw}`, async () => {
+      const payload = await fetchJson(
+        `${CONSUMET}/manga/mangapill/read?chapterId=${encodeURIComponent(raw)}`,
+        { timeout: 8000 }
+      );
+      const rows = Array.isArray(payload) ? payload : [];
+      return rows.map((row) => row.img).filter(Boolean);
+    }, 8 * 60 * 1000);
+  }
   return cached(`md:pages:${chapterId}`, async () => {
     const payload = await fetchJson(`${MANGADEX}/at-home/server/${chapterId}`, { timeout: 5000 });
     const chapter = payload.chapter || {};
@@ -636,6 +755,245 @@ async function fallbackDetail(parsed, cached, search, loaders) {
   return null;
 }
 
+async function sankaAnimeList(page) {
+  if (page > 1) return { items: [], hasNext: false, source: "sanka" };
+  const payload = await fetchJson(`${SANKA}/anime/home`);
+  const rows = [
+    ...(payload.data?.ongoing?.animeList || []),
+    ...(payload.data?.completed?.animeList || []),
+  ].slice(0, 20);
+  return {
+    items: rows.filter((row) => row.animeId).map((row) => ({
+      id: `sanka:${row.animeId}`,
+      source: "sanka",
+      title: row.title,
+      image: row.poster || "",
+      rating: null,
+      episodeNumber: row.episodes || null,
+      kind: "anime",
+    })),
+    hasNext: true,
+    source: "sanka",
+  };
+}
+
+async function sankaSearch(query) {
+  const payload = await fetchJson(`${SANKA}/anime/search/${encodeURIComponent(query)}`);
+  const rows = payload.data?.animeList || [];
+  return {
+    items: rows.filter((row) => row.animeId).map((row) => ({
+      id: `sanka:${row.animeId}`,
+      source: "sanka",
+      title: row.title,
+      image: row.poster || "",
+      rating: row.score ? Number(row.score) : null,
+      kind: "anime",
+    })),
+    hasNext: false,
+    source: "sanka",
+  };
+}
+
+async function sankaAnimeDetail(slug) {
+  const payload = await fetchJson(`${SANKA}/anime/anime/${encodeURIComponent(slug)}`);
+  const data = payload.data;
+  if (!data?.title) throw new Error("Sanka title was not found");
+  const synopsis = Array.isArray(data.synopsis?.paragraphs)
+    ? data.synopsis.paragraphs.join("\n\n")
+    : "";
+  const episodes = (data.episodeList || [])
+    .map((episode) => ({
+      number: Number(episode.eps) || 0,
+      title: `Episode ${episode.eps}`,
+      episodeId: episode.episodeId,
+      url: "",
+      site: "Sanka",
+      thumbnail: "",
+    }))
+    .filter((episode) => episode.episodeId)
+    .sort((left, right) => left.number - right.number);
+  const detail = {
+    id: `sanka:${slug}`,
+    source: "sanka",
+    title: data.title,
+    image: data.poster || "",
+    rating: data.score ? Number(data.score) : null,
+    description: plainText(synopsis),
+    episodes,
+    chapters: [],
+    notice: episodes.length ? "Choose an episode to load a player." : "",
+    kind: "anime",
+  };
+  remember([detail]);
+  return detail;
+}
+
+function playableTitle(wanted, found) {
+  const strip = (value) => compactTitle(
+    String(value || "")
+      .replace(/subtitle indonesia/ig, "")
+      .replace(/\(episode[^)]*\)/ig, "")
+  );
+  const left = strip(wanted);
+  const right = strip(found);
+  return Boolean(left) && left === right;
+}
+
+async function attachPreview(detail) {
+  if (!detail || detail.preview?.embed) return detail;
+  try {
+    let malId = detail.malId;
+    if (!malId && detail.title) {
+      const found = await fetchJson(
+        `${SHIKIMORI}/animes?search=${encodeURIComponent(detail.title)}&limit=5`,
+        { timeout: 3500 }
+      );
+      const row = (Array.isArray(found) ? found : []).find((item) => playableTitle(detail.title, item.name));
+      malId = row?.id || null;
+    }
+    if (!malId) return detail;
+    const videos = await fetchJson(`${SHIKIMORI}/animes/${malId}/videos`, { timeout: 3500 });
+    const rank = { pv: 0, op: 1, ed: 2, other: 3 };
+    const picked = (Array.isArray(videos) ? videos : [])
+      .filter((video) => video.hosting === "youtube" && youtubeId(video.player_url || video.url))
+      .sort((left, right) => (rank[left.kind] ?? 9) - (rank[right.kind] ?? 9))[0];
+    if (!picked) return detail;
+    const kindLabel = { pv: "Trailer", op: "Opening", ed: "Ending", other: "Preview" }[picked.kind] || "Preview";
+    return {
+      ...detail,
+      malId,
+      preview: {
+        label: picked.name ? `${kindLabel}: ${picked.name}` : kindLabel,
+        embed: youtubeEmbed(youtubeId(picked.player_url || picked.url)),
+      },
+    };
+  } catch {
+    return detail;
+  }
+}
+
+async function attachPlayableEpisodes(detail) {
+  if (!detail?.title || detail.source === "sanka") return detail;
+  if ((detail.episodes || []).some((episode) => episode.episodeId)) return detail;
+  try {
+    const found = await sankaSearch(detail.title);
+    const hit = found.items.find((item) => playableTitle(detail.title, item.title));
+    if (!hit) return detail;
+    const playable = await sankaAnimeDetail(parseCatalogId(hit.id).raw);
+    if (!playable?.episodes?.length) return detail;
+    return {
+      ...detail,
+      episodes: playable.episodes,
+      notice: "Playback comes from Sanka. Poster and description stay with the catalog source.",
+    };
+  } catch {
+    return detail;
+  }
+}
+
+async function kiryuuList(page) {
+  if (page > 1) return { items: [], hasNext: false, source: "kiryuu" };
+  const payload = await fetchJson(`${SANKA}/comic/kiryuu/home`);
+  const rows = payload.trending || payload.data?.trending || [];
+  return {
+    items: rows.filter((row) => row.slug && row.imageSrc && !String(row.imageSrc).startsWith("data:")).map((row) => ({
+      id: `kiryuu:${row.slug}`,
+      source: "kiryuu",
+      title: row.title,
+      image: row.imageSrc,
+      rating: row.rating ? Number(row.rating) : null,
+      kind: "manga",
+    })),
+    hasNext: true,
+    source: "kiryuu",
+  };
+}
+
+async function kiryuuSearch(query) {
+  const payload = await fetchJson(`${SANKA}/comic/kiryuu/search/${encodeURIComponent(query)}`);
+  const rows = payload.seriesList || [];
+  return {
+    items: rows.filter((row) => row.slug).map((row) => ({
+      id: `kiryuu:${row.slug}`,
+      source: "kiryuu",
+      title: row.title,
+      image: row.image || "",
+      rating: row.rating ? Number(row.rating) : null,
+      kind: "manga",
+    })),
+    hasNext: false,
+    source: "kiryuu",
+  };
+}
+
+async function komikstationDetail(slug) {
+  const payload = await fetchJson(`${SANKA}/comic/komikstation/manga/${encodeURIComponent(slug)}`, {
+    timeout: 8000,
+  });
+  if (!payload?.title || !payload?.chapters?.length) return null;
+  const latest = payload.chapters.slice(0, 80);
+  const chapters = latest.map((chapter) => ({
+    id: `komikstation:${chapter.slug}`,
+    number: chapter.title,
+    title: String(chapter.title || "Chapter").replace(/\s+/g, " ").trim(),
+    pages: 1,
+  }));
+  return {
+    id: `komikstation:${slug}`,
+    source: "komikstation",
+    title: payload.title,
+    image: payload.imageSrc || "",
+    rating: payload.rating ? Number(payload.rating) : null,
+    description: plainText(payload.synopsis),
+    episodes: [],
+    chapters,
+    notice: payload.chapters.length > latest.length ? "Showing the latest 80 chapters." : "",
+    kind: "manga",
+  };
+}
+
+async function kiryuuDetail(slug) {
+  const payload = await fetchJson(`${SANKA}/comic/kiryuu/manga/${encodeURIComponent(slug)}`);
+  if (!payload?.title) return null;
+  try {
+    const readable = await komikstationDetail(slug);
+    if (readable?.chapters?.length) {
+      const detail = {
+        ...readable,
+        id: `kiryuu:${slug}`,
+        image: payload.imageSrc || readable.image,
+        title: payload.title || readable.title,
+        description: plainText(payload.synopsis) || readable.description,
+        notice: ["Chapter pages come from Komikstation.", readable.notice].filter(Boolean).join(" "),
+      };
+      remember([detail]);
+      return detail;
+    }
+  } catch {
+    // Komikstation does not have this slug. Keep the Kiryuu record.
+  }
+  const chapters = (payload.chapters || []).map((chapter) => ({
+    id: "",
+    number: chapter.slug,
+    title: String(chapter.title || "Chapter").replace(/\s+/g, " ").trim(),
+    pages: 0,
+  }));
+  const detail = {
+    id: `kiryuu:${slug}`,
+    source: "kiryuu",
+    title: payload.title,
+    image: payload.imageSrc || "",
+    rating: payload.rating ? Number(payload.rating) : null,
+    description: plainText(payload.synopsis),
+    episodes: [],
+    chapters,
+    notice: "Kiryuu has the cover and chapter names. Page images are not available from that source.",
+    kind: "manga",
+  };
+  remember([detail]);
+  return detail;
+}
+
 async function listAnimeFresh(preset, page = 1) {
   const anilistPreset = {
     recent: { sort: "POPULARITY_DESC", status: "RELEASING" },
@@ -652,6 +1010,7 @@ async function listAnimeFresh(preset, page = 1) {
       }
       return kitsuCollection(kitsuListPath("anime", preset, page), "anime");
     },
+    () => (preset === "recent" ? sankaAnimeList(page) : Promise.resolve({ items: [] })),
   ]);
 }
 
@@ -665,7 +1024,42 @@ async function searchAnimeFresh(query, page = 1) {
       params.set("page[offset]", String((page - 1) * 20));
       return kitsuCollection(`/anime?${params.toString()}`, "anime");
     },
+    () => sankaSearch(query),
   ]);
+}
+
+async function loadMangapillChapters(title) {
+  const search = await fetchJson(`${CONSUMET}/manga/mangapill/${encodeURIComponent(title)}`, {
+    timeout: 6000,
+  });
+  const hit = bestTitleMatch(title, search.results || [], (row) => row.title);
+  if (!hit?.id) return [];
+  const info = await fetchJson(
+    `${CONSUMET}/manga/mangapill/info?id=${encodeURIComponent(hit.id)}`,
+    { timeout: 8000 }
+  );
+  return (info.chapters || [])
+    .map((chapter, index) => ({
+      id: `mangapill:${chapter.id}`,
+      number: chapter.chapter || index + 1,
+      title: chapter.title || `Chapter ${chapter.chapter || index + 1}`,
+      pages: 1,
+    }))
+    .sort((left, right) => {
+      const leftNumber = parseFloat(left.number);
+      const rightNumber = parseFloat(right.number);
+      const leftOk = Number.isFinite(leftNumber);
+      const rightOk = Number.isFinite(rightNumber);
+      if (leftOk && rightOk && leftNumber !== rightNumber) return leftNumber - rightNumber;
+      if (leftOk && !rightOk) return -1;
+      if (!leftOk && rightOk) return 1;
+      return 0;
+    });
+}
+
+export function findMangaReader(title) {
+  const key = `mp:reader:${String(title || "").toLowerCase().trim()}`;
+  return cached(key, () => loadMangapillChapters(title));
 }
 
 async function getAnimeDetailFresh(catalogId) {
@@ -673,22 +1067,23 @@ async function getAnimeDetailFresh(catalogId) {
   const loaders = {
     anilist: (raw) => anilistDetail(raw, "ANIME"),
     kitsu: (raw) => kitsuAnimeDetail(raw),
+    sanka: (raw) => sankaAnimeDetail(raw),
   };
   try {
     if (!loaders[parsed.source]) throw new Error("Unknown anime source");
-    return await loaders[parsed.source](parsed.raw);
+    const detail = await loaders[parsed.source](parsed.raw);
+    if (!detail?.title) throw new Error("Anime title was not found");
+    return attachPreview(await attachPlayableEpisodes(detail));
   } catch (error) {
-    const fallback = await fallbackDetail(parsed, recall(parsed.id), searchAnime, {
-      anilist: (raw) => anilistDetail(raw, "ANIME"),
-      kitsu: kitsuAnimeDetail,
-    });
-    if (fallback) return fallback;
+    const fallback = await fallbackDetail(parsed, recall(parsed.id), searchAnime, loaders);
+    if (fallback) return attachPreview(await attachPlayableEpisodes(fallback));
     throw error;
   }
 }
 
 async function listMangaFresh(page = 1) {
   return firstList([
+    () => kiryuuList(page),
     () => mangadexList(page),
     () => kitsuCollection(kitsuListPath("manga", "popular", page), "manga"),
     () => anilistPage({ type: "MANGA", page, sort: "POPULARITY_DESC" }),
@@ -697,6 +1092,7 @@ async function listMangaFresh(page = 1) {
 
 async function searchMangaFresh(query, page = 1) {
   return firstList([
+    () => kiryuuSearch(query),
     () => mangadexList(page, query),
     () => {
       const params = new URLSearchParams();
@@ -715,6 +1111,8 @@ async function getMangaDetailFresh(catalogId) {
     mangadex: (raw) => mangadexDetail(raw),
     kitsu: (raw) => kitsuMangaDetail(raw),
     anilist: (raw) => anilistDetail(raw, "MANGA"),
+    kiryuu: (raw) => kiryuuDetail(raw),
+    komikstation: (raw) => komikstationDetail(raw),
   };
   try {
     if (!loaders[parsed.source]) throw new Error("Unknown manga source");

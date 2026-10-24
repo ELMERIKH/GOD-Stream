@@ -5,7 +5,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
 import CatalogSkeleton from "./CatalogSkeleton";
-import { getMangaDetail, getMangaPages, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
+import { findMangaReader, getMangaDetail, getMangaPages, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
 
 function MangaId() {
   const { id } = useParams();
@@ -41,6 +41,30 @@ function MangaId() {
       cancelled = true;
     };
   }, [id, retryToken]);
+
+  useEffect(() => {
+    if (!manga?.title) return undefined;
+    const readable = (manga.chapters || []).filter((chapter) => chapter.id && chapter.pages);
+    if (readable.length >= 3) return undefined;
+    let cancelled = false;
+    findMangaReader(manga.title)
+      .then((chapters) => {
+        if (cancelled || !Array.isArray(chapters) || chapters.length <= readable.length) return;
+        setChapterIndex(0);
+        setManga((current) => {
+          if (!current || current.id !== manga.id) return current;
+          return {
+            ...current,
+            chapters,
+            notice: "Chapter pages are from MangaPill.",
+          };
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [manga]);
 
   useEffect(() => {
     const chapter = manga?.chapters?.[chapterIndex];

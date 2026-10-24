@@ -1,8 +1,21 @@
+jest.mock("axios", () => {
+  const client = {
+    get: jest.fn(() => Promise.resolve({ data: {} })),
+    post: jest.fn(() => Promise.resolve({ data: {} })),
+  };
+  return {
+    __esModule: true,
+    default: {
+      ...client,
+      create: jest.fn(() => client),
+    },
+  };
+});
+
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders the StreamGod wordmark', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText(/StreamGod/i)).toBeInTheDocument();
 });

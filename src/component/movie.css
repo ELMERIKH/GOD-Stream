@@ -450,6 +450,35 @@ body {
   text-decoration: none;
 }
 
+.stream-frame {
+  width: min(960px, 100%);
+  margin-top: 0.85rem;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #000;
+}
+
+.stream-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.player-frame,
+.player-video {
+  display: block;
+  width: min(720px, 100%);
+  margin-top: 0.85rem;
+  border: 0;
+  border-radius: 12px;
+  background: #000;
+}
+
+.player-frame {
+  aspect-ratio: 16 / 9;
+}
+
 .episode-thumb,
 .reader-page {
   display: block;
