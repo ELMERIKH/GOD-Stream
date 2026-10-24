@@ -100,6 +100,7 @@ function Anime() {
             src={movie.image || POSTER_PLACEHOLDER}
             alt={movie.title}
             className="img-fluid rounded"
+            referrerPolicy="no-referrer"
             onError={onPosterError}
           />
           {movie.rating ? <h2 className="rate">Score {movie.rating}</h2> : null}
@@ -163,7 +164,7 @@ function Anime() {
               </a>
             </p>
           ) : null}
-          {!embedUrl && !preview && !episode?.url && embedNote !== "Loading player" && episodes.length > 0 ? (
+          {!embedUrl && !preview && !episode?.url && !embedNote && episodes.length > 0 ? (
             <p className="catalog-note">Stream playback is unavailable. The poster and episode list stay on this page.</p>
           ) : null}
           <div className="my-4">

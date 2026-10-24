@@ -20,7 +20,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v2";
+const HTTP_KEY = "streamgod.http.v3";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -810,8 +810,8 @@ async function sankaAnimeDetail(slug) {
       site: "Sanka",
       thumbnail: "",
     }))
-    .filter((episode) => episode.episodeId)
-    .sort((left, right) => left.number - right.number);
+    .filter((episode) => episode.episodeId && episode.number > 0)
+    .sort((left, right) => right.number - left.number);
   const detail = {
     id: `sanka:${slug}`,
     source: "sanka",
@@ -961,7 +961,8 @@ async function kiryuuDetail(slug) {
       const detail = {
         ...readable,
         id: `kiryuu:${slug}`,
-        image: payload.imageSrc || readable.image,
+        source: "kiryuu",
+        image: readable.image || payload.imageSrc || "",
         title: payload.title || readable.title,
         description: plainText(payload.synopsis) || readable.description,
         notice: ["Chapter pages come from Komikstation.", readable.notice].filter(Boolean).join(" "),
