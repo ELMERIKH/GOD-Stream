@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import './Header.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import logoCat from '../assets/logo-cat.png';
 import { AuthicateContext } from './Auth'
 
 const SLEEPING_CAT = [
@@ -36,9 +37,7 @@ const Header = () => {
       <div className="header__inner">
         <Link to="/" className="brand" onClick={closeMenu}>
           <span className="brand__mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32" width="18" height="18" focusable="false">
-              <path d="M11 7.5v17l14-8.5-14-8.5z" fill="currentColor" />
-            </svg>
+            <img src={logoCat} alt="" />
           </span>
           <span className="brand__name">StreamGod</span>
           <pre className="brand__cat" aria-hidden="true">{SLEEPING_CAT}</pre>

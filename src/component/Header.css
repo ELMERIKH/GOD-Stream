@@ -28,16 +28,23 @@
 }
 
 .brand__mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: linear-gradient(160deg, #fb7185, var(--gold));
-  color: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #d7eef8;
+}
+
+.brand__mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 62%;
+  transform: scale(1.42);
+  transform-origin: center 58%;
 }
 
 .brand__name {
@@ -142,6 +149,12 @@
   background: var(--text);
 }
 
+@media (max-width: 480px) {
+  .brand__cat {
+    display: none;
+  }
+}
+
 @media (max-width: 800px) {
   .brand {
     gap: 0.45rem;
@@ -149,6 +162,11 @@
 
   .brand__name {
     font-size: 1.2rem;
+  }
+
+  .brand__mark {
+    width: 38px;
+    height: 38px;
   }
 
   .brand__cat {
