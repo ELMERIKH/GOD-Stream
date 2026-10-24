@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: streamgod
+    runtime: node
+    plan: free
+    buildCommand: npm install --no-audit --no-fund --include=dev && npm run build
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GENERATE_SOURCEMAP
+        value: "false"
+      - key: DISABLE_ESLINT_PLUGIN
+        value: "true"
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384

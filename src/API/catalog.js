@@ -1284,8 +1284,17 @@ async function searchMangaFresh(query, page = 1) {
   ]);
 }
 
-async function getMangaDetailFresh(catalogId) {
+function withBareMangaId(catalogId) {
   const parsed = parseCatalogId(catalogId);
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!parsed.source && uuid.test(parsed.raw)) {
+    return { source: "mangadex", raw: parsed.raw, id: `mangadex:${parsed.raw}` };
+  }
+  return parsed;
+}
+
+async function getMangaDetailFresh(catalogId) {
+  const parsed = withBareMangaId(catalogId);
   const loaders = {
     mangadex: (raw) => mangadexDetail(raw),
     kitsu: (raw) => kitsuMangaDetail(raw),

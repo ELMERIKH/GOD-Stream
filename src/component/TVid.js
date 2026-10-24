@@ -5,8 +5,6 @@ import { useParams} from "react-router-dom";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import Rate from "./rating";
 import Comments from "./comments";
-import { Container } from "react-bootstrap";
-import ReactPlayer from "react-player";
 
 
 function TV() {

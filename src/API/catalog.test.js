@@ -1,6 +1,7 @@
 import {
   clearCatalogCache,
   getAnimeDetail,
+  getMangaDetail,
   getMangaPages,
   listAnime,
   listManga,
@@ -190,6 +191,28 @@ test("anime detail attaches Sanka episodes and prefers a filedon player", async 
     String(call[0]).includes("/anime/episode/")
   );
   expect(episodeCalls).toHaveLength(1);
+});
+
+test("a bare manga uuid opens through MangaDex", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/feed")) return jsonResponse({ result: "ok", data: [] });
+    if (href.includes("/manga/04f6660b-0018-452d-844a-a205594dd66d")) {
+      return jsonResponse({
+        result: "ok",
+        data: {
+          id: "04f6660b-0018-452d-844a-a205594dd66d",
+          attributes: { title: { en: "Old Link" }, description: {} },
+          relationships: [],
+        },
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const detail = await getMangaDetail("04f6660b-0018-452d-844a-a205594dd66d");
+  expect(detail.source).toBe("mangadex");
+  expect(detail.title).toBe("Old Link");
 });
 
 test("episode source buttons keep the highest quality for each server", async () => {
