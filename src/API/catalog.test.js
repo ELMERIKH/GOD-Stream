@@ -8,7 +8,10 @@ import {
   loadEpisodeEmbed,
   loadEpisodeServers,
   loadMangaSources,
+  mergeSankaChapterPages,
+  parseSankaChapterPage,
   searchManga,
+  sankaChapterPageInfo,
 } from "./catalog";
 
 function jsonResponse(body, status = 200) {
@@ -714,4 +717,112 @@ test("loadMangaSources uses Komikstation when MangaDex has no hosted pages", asy
   expect(sources[0].id).toBe("komikstation");
   expect(sources[0].chapters[0].id).toBe("komikstation:martial-peak-chapter-1");
   expect(sources[0].chapters[0].pages).toBeGreaterThan(0);
+});
+
+test("Sanka comic chapter pages keep chapter 1 and the latest chapter", () => {
+  const chapters = mergeSankaChapterPages("komikindo", [
+    {
+      data: {
+        chapters: [
+          { title: "Chapter 135", slug: "kagurabachi-chapter-135" },
+          { title: "Chapter 100", slug: "kagurabachi-chapter-100" },
+        ],
+      },
+      pagination: { currentPage: 1, hasNextPage: true },
+    },
+    {
+      data: {
+        chapters: [
+          { title: "Chapter 135", slug: "kagurabachi-chapter-135" },
+          { title: "Chapter 1", slug: "kagurabachi-chapter-1" },
+          { title: "Chapter 112.5", slug: "kagurabachi-chapter-112-5" },
+        ],
+      },
+      pagination: { currentPage: 2, hasNextPage: false },
+    },
+  ]);
+  expect(chapters.map((chapter) => chapter.number)).toEqual(["135", "100", "1", "112.5"]);
+  expect(chapters[0].id).toBe("sanka:komikindo:kagurabachi-chapter-135");
+  expect(sankaChapterPageInfo({ pagination: { current_page: 1, total_pages: 6 } }).hasNext).toBe(true);
+  expect(sankaChapterPageInfo({ pagination: { currentPage: 2, hasNextPage: false } }).hasNext).toBe(false);
+
+  const fromSlug = parseSankaChapterPage("bacakomik", {
+    detail: { chapters: [{ title: "", slug: "kagurabachi-chapter-1" }] },
+  });
+  expect(fromSlug[0]).toMatchObject({
+    id: "sanka:bacakomik:kagurabachi-chapter-1",
+    number: "1",
+    pages: 1,
+  });
+  const shinigami = parseSankaChapterPage("shinigami", {
+    data: [{ chapter_id: "abc", chapter_number: 135, chapter_title: null }],
+  });
+  expect(shinigami[0].id).toBe("sanka:shinigami:abc");
+  expect(shinigami[0].number).toBe("135");
+});
+
+test("loadMangaSources prefers Sanka when it reaches the latest hosted chapter", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/comic/komikindo/search/")) {
+      return jsonResponse({ komikList: [{ title: "Kagurabachi", slug: "kagurabachi" }] });
+    }
+    if (href.includes("/comic/komikindo/detail/")) {
+      const page = Number(new URL(href).searchParams.get("page") || "1");
+      if (page === 1) {
+        return jsonResponse({
+          success: true,
+          data: {
+            chapters: [
+              { title: "Chapter 135", slug: "kagurabachi-chapter-135" },
+              { title: "Chapter 100", slug: "kagurabachi-chapter-100" },
+            ],
+          },
+          pagination: { currentPage: 1, hasNextPage: true },
+        });
+      }
+      return jsonResponse({
+        success: true,
+        data: {
+          chapters: [{ title: "Chapter 1", slug: "kagurabachi-chapter-1" }],
+        },
+        pagination: { currentPage: 2, hasNextPage: false },
+      });
+    }
+    if (href.includes("/feed")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [
+          {
+            id: "en-10",
+            attributes: { chapter: "10", pages: 4, translatedLanguage: "en", externalUrl: null },
+          },
+        ],
+      });
+    }
+    if (href.includes("api.mangadex.org")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [
+          {
+            id: "kagura",
+            attributes: { title: { en: "Kagurabachi" }, description: {} },
+            relationships: [],
+          },
+        ],
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const sources = await loadMangaSources("Kagurabachi");
+  expect(sources[0].id).toBe("sanka");
+  expect(sources[0].label).toBe("Sanka");
+  expect(sources[0].chapters.map((chapter) => chapter.number)).toEqual(["135", "100", "1"]);
+  expect(sources[0].notice).toMatch(/Chapter 136 is not on Sanka/);
+  expect(sources[0].notice).toMatch(/Showing chapter 135/);
+  expect(sources[1].id).toBe("mangadex");
+  expect(global.fetch.mock.calls.map((call) => String(call[0])).some((href) => href.includes("page=2"))).toBe(true);
 });

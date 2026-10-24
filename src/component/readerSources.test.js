@@ -42,6 +42,15 @@ test("a Kiryuu title that already has Komikstation pages stays on that source", 
   expect(sources[0].id).toBe("komikstation");
   expect(sources[1].id).toBe("mangadex");
   expect(newestChapterIndex(sources[0].chapters)).toBe(0);
+  const withSanka = buildReaderSources(manga, [
+    dex,
+    {
+      id: "sanka",
+      label: "Sanka",
+      chapters: [{ id: "sanka:komikindo:martial-peak-chapter-1", number: "1", title: "Chapter 1", pages: 1 }],
+    },
+  ]);
+  expect(withSanka[0].id).toBe("komikstation");
   expect(buildReaderSources(manga, [])).toHaveLength(1);
 });
 

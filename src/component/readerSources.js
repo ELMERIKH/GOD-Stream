@@ -13,6 +13,9 @@ function readerIdentity(detail) {
   if (chapters.some((chapter) => String(chapter.id || "").startsWith("mangapill:"))) {
     return { id: "mangapill", label: "MangaPill" };
   }
+  if (chapters.some((chapter) => String(chapter.id || "").startsWith("sanka:"))) {
+    return { id: "sanka", label: "Sanka" };
+  }
   if (chapters.some((chapter) => chapter.id && chapter.pages && !String(chapter.id).includes(":"))) {
     return { id: "mangadex", label: "MangaDex" };
   }

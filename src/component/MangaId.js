@@ -299,7 +299,7 @@ function MangaId() {
           onError={onPosterError}
         />
         <div>
-          <p className="source-pill">{sourceLabel(manga.source)}</p>
+          <p className="source-pill">{currentSource?.label || sourceLabel(manga.source)}</p>
           <h1>{manga.title}</h1>
           {manga.rating ? <p className="rate">Score {manga.rating}</p> : null}
           <p className="catalog-description">{manga.description || "No description is available."}</p>

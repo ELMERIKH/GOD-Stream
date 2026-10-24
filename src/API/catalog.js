@@ -22,7 +22,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v9";
+const HTTP_KEY = "streamgod.http.v10";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -57,6 +57,7 @@ export function sourceLabel(source) {
       nozu: "Nozu",
       kiryuu: "Kiryuu",
       komikstation: "Komikstation",
+      sanka: "Sanka",
       mangapill: "MangaPill",
       shikimori: "Shikimori",
     }[source] || source || "Catalog"
@@ -839,16 +840,20 @@ async function loadMangaDexFeed(mangaId, language) {
   return chapters;
 }
 
-function hostedChapterNotice(title, chapters) {
-  if (!/kagurabachi/i.test(String(title || ""))) return "";
-  if ((chapters || []).some((chapter) => String(chapter.number) === "136")) return "";
-  const nearest = (chapters || []).reduce((best, chapter) => {
+function highestChapterNumber(chapters) {
+  return (chapters || []).reduce((best, chapter) => {
     const number = chapterNumber(chapter.number);
     return number != null && number > best ? number : best;
   }, 0);
+}
+
+function hostedChapterNotice(title, chapters, sourceName = "MangaDex") {
+  if (!/kagurabachi/i.test(String(title || ""))) return "";
+  const nearest = highestChapterNumber(chapters);
+  if (nearest >= 136) return "";
   return nearest
-    ? `Chapter 136 is not on MangaDex. Showing chapter ${nearest}.`
-    : "Chapter 136 is not on MangaDex.";
+    ? `Chapter 136 is not on ${sourceName}. Showing chapter ${nearest}.`
+    : `Chapter 136 is not on ${sourceName}.`;
 }
 
 async function mangadexChapters(mangaId) {
@@ -967,6 +972,21 @@ export function loadEpisodeEmbed(episodeId) {
 
 export function getMangaPages(chapterId) {
   if (!chapterId) return Promise.resolve([]);
+  if (String(chapterId).startsWith("sanka:")) {
+    const rest = String(chapterId).slice("sanka:".length);
+    const splitAt = rest.indexOf(":");
+    const source = splitAt > 0 ? rest.slice(0, splitAt) : "";
+    const slug = splitAt > 0 ? rest.slice(splitAt + 1) : "";
+    if (!source || !slug || source === "mangasusuku") return Promise.resolve([]);
+    return cached(`sanka:pages:${source}:${slug}`, async () => {
+      const payload = await fetchJson(
+        `${SANKA}/comic/${encodeURIComponent(source)}/chapter/${encodeURIComponent(slug)}`,
+        { timeout: 8000 }
+      );
+      const images = payload?.data?.images || payload?.images || [];
+      return images.map((item) => (typeof item === "string" ? item : item?.url)).filter(Boolean);
+    }, 8 * 60 * 1000);
+  }
   if (String(chapterId).startsWith("komikstation:")) {
     const slug = String(chapterId).slice("komikstation:".length);
     return cached(`ks:pages:${slug}`, async () => {
@@ -1367,6 +1387,116 @@ export function findMangaReader(title) {
   return cached(key, () => loadMangapillChapters(title));
 }
 
+const SANKA_COMIC_SOURCES = ["komikindo", "bacakomik"];
+
+function readSankaChapterNumber(chapter) {
+  const title = String(chapter?.title || chapter?.chapter_title || "");
+  const titleMatch = title.match(/chapter\s*(\d+(?:\.\d+)?)/i) || title.match(/^(\d+(?:\.\d+)?)$/);
+  if (titleMatch) return titleMatch[1];
+  const slug = String(chapter?.slug || "");
+  const slugMatch = slug.match(/chapter-(\d+(?:[.-]\d+)?)/i);
+  return slugMatch ? slugMatch[1].replace("-", ".") : "";
+}
+
+export function parseSankaChapterPage(source, payload) {
+  if (source === "shinigami") {
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    return rows.filter((row) => row?.chapter_id).map((row) => ({
+      id: `sanka:shinigami:${row.chapter_id}`,
+      number: String(row.chapter_number ?? ""),
+      title: row.chapter_title
+        ? `Chapter ${row.chapter_number} — ${row.chapter_title}`
+        : `Chapter ${row.chapter_number}`,
+      pages: 1,
+    })).filter((chapter) => chapter.number);
+  }
+  const rows = source === "bacakomik"
+    ? (payload?.detail?.chapters || [])
+    : (payload?.data?.chapters || payload?.chapters || []);
+  return rows.filter((row) => row?.slug).map((row) => {
+    const number = readSankaChapterNumber(row);
+    const label = String(row.title || "").replace(/\s+/g, " ").trim();
+    return {
+      id: `sanka:${source}:${row.slug}`,
+      number: number || label,
+      title: label || (number ? `Chapter ${number}` : "Chapter"),
+      pages: 1,
+    };
+  }).filter((chapter) => chapter.id && !chapter.id.includes("mangapill:"));
+}
+
+export function sankaChapterPageInfo(payload) {
+  const page = payload?.pagination || payload?.data?.pagination || {};
+  const current = Number(page.currentPage || page.current_page || 1);
+  const total = Number(page.total_pages || page.totalPages || 0);
+  const hasNext = Boolean(page.hasNextPage) || (Number.isFinite(total) && total > current);
+  return { current: Number.isFinite(current) ? current : 1, hasNext };
+}
+
+export function mergeSankaChapterPages(source, payloads) {
+  const byId = new Map();
+  (payloads || []).forEach((payload) => {
+    parseSankaChapterPage(source, payload).forEach((chapter) => {
+      if (!byId.has(chapter.id)) byId.set(chapter.id, chapter);
+    });
+  });
+  return [...byId.values()];
+}
+
+async function sankaComicSearch(source, query) {
+  const payload = await fetchJson(
+    `${SANKA}/comic/${encodeURIComponent(source)}/search/${encodeURIComponent(query)}`,
+    { timeout: 8000 }
+  );
+  const rows = payload?.komikList || payload?.results || payload?.seriesList || [];
+  return rows
+    .map((row) => ({
+      title: String(row.title || "").replace(/\s+/g, " ").trim(),
+      slug: row.slug || row.manga_id || "",
+    }))
+    .filter((row) => row.title && row.slug && !row.slug.startsWith("?"));
+}
+
+async function loadSankaChapters(source, slug) {
+  const payloads = [];
+  for (let page = 1; page <= 40; page += 1) {
+    const path = page === 1
+      ? `/comic/${encodeURIComponent(source)}/detail/${encodeURIComponent(slug)}`
+      : `/comic/${encodeURIComponent(source)}/detail/${encodeURIComponent(slug)}?page=${page}`;
+    const payload = await fetchJson(`${SANKA}${path}`, { timeout: 8000 });
+    payloads.push(payload);
+    if (!sankaChapterPageInfo(payload).hasNext) break;
+  }
+  return mergeSankaChapterPages(source, payloads);
+}
+
+function sankaShouldLead(sankaChapters, dexChapters) {
+  if (!sankaChapters.length) return false;
+  if (!dexChapters.length) return true;
+  return highestChapterNumber(sankaChapters) >= highestChapterNumber(dexChapters);
+}
+
+async function sankaComicReader(title) {
+  for (const source of SANKA_COMIC_SOURCES) {
+    try {
+      const found = await sankaComicSearch(source, title);
+      const hit = found.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
+      if (!hit) continue;
+      const chapters = await loadSankaChapters(source, hit.slug);
+      if (!chapters.length) continue;
+      return {
+        id: "sanka",
+        label: "Sanka",
+        chapters,
+        notice: hostedChapterNotice(title, chapters, "Sanka") || "Chapter pages come from Sanka.",
+      };
+    } catch {
+      // The next Sanka comic source can still have this title.
+    }
+  }
+  return null;
+}
+
 async function mangadexReader(title) {
   const list = await mangadexList(1, title);
   const hit = bestTitleMatch(title, list.items, (item) => item.title);
@@ -1402,12 +1532,19 @@ async function komikstationReader(title) {
 export function loadMangaSources(title) {
   const key = `manga-sources:${compactTitle(title)}`;
   return cached(key, async () => {
+    const [sanka, dex] = await Promise.all([
+      sankaComicReader(title).catch(() => null),
+      mangadexReader(title).catch(() => null),
+    ]);
     const sources = [];
-    try {
-      const dex = await mangadexReader(title);
-      if (dex?.chapters?.length) sources.push(dex);
-    } catch {
-      // An empty MangaDex match still leaves Komikstation available.
+    const sankaChapters = sanka?.chapters || [];
+    const dexChapters = dex?.chapters || [];
+    if (sankaShouldLead(sankaChapters, dexChapters)) {
+      sources.push(sanka);
+      if (dexChapters.length) sources.push(dex);
+    } else if (dexChapters.length) {
+      sources.push(dex);
+      if (sankaChapters.length) sources.push(sanka);
     }
     if (!sources.length) {
       try {
