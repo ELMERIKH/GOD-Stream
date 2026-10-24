@@ -4,7 +4,7 @@ import "./movie.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
-import CatalogSkeleton from "./CatalogSkeleton";
+import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
 import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
 
 function readerIdentity(detail) {
@@ -137,11 +137,7 @@ function MangaId() {
   }, [manga, chapter, chapterIndex]);
 
   if (loading) {
-    return (
-      <div className="search-box">
-        <CatalogSkeleton />
-      </div>
-    );
+    return <CatalogSkeleton variant="watch" label="Opening the reader" />;
   }
 
   if (!manga) {
@@ -213,9 +209,13 @@ function MangaId() {
             </button>
             <span>{pageCount ? `Page ${pageIndex + 1} of ${pageCount}` : "No pages"}</span>
           </div>
-          {pagesLoading && <p className="catalog-note">Loading pages</p>}
           {pageNote ? <p className="catalog-note">{pageNote}</p> : null}
-          {pages[pageIndex] ? (
+          {pagesLoading ? (
+            <div className="reader-page reader-page--loading" role="status" aria-live="polite">
+              <LoaderMark />
+              <p>Loading pages</p>
+            </div>
+          ) : pages[pageIndex] ? (
             <img
               className="reader-page"
               src={pages[pageIndex]}

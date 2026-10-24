@@ -47,22 +47,33 @@ const Home = () => {
         )}
         <div className="billboard__shade" />
         <div className="billboard__copy">
-          <p className="eyebrow">Now playing</p>
-          <h1>{featured ? featured.title : 'Welcome to movie reviews'}</h1>
-          <p className="lede">
-            {featured
-              ? featured.overview
-              : 'Watch, rate, and discuss all your favorite movies, shows, anime, and manga.'}
-          </p>
-          <div className="hero__actions">
-            {featured && (
-              <Link className="btn-gold" to={`/movie/${featured.id}`}>
-                Open {featured.title}
-              </Link>
-            )}
-            <Link className="btn-ghost" to="/movies">Browse movies</Link>
-          </div>
-          {failed && <p className="lede lede-quiet">Posters could not be loaded.</p>}
+          {!featured && !failed ? (
+            <div className="copy-skeleton" role="status" aria-label="Loading featured title">
+              <span className="copy-skeleton__kicker" />
+              <span className="copy-skeleton__title" />
+              <span className="copy-skeleton__line" />
+              <span className="copy-skeleton__line copy-skeleton__line--short" />
+            </div>
+          ) : (
+            <>
+              <p className="eyebrow">Now playing</p>
+              <h1>{featured ? featured.title : 'StreamGod'}</h1>
+              <p className="lede">
+                {featured
+                  ? featured.overview
+                  : 'Watch, rate, and discuss movies, shows, anime, and manga.'}
+              </p>
+              <div className="hero__actions">
+                {featured && (
+                  <Link className="btn-gold" to={`/movie/${featured.id}`}>
+                    Open {featured.title}
+                  </Link>
+                )}
+                <Link className="btn-ghost" to="/movies">Browse movies</Link>
+              </div>
+              {failed && <p className="lede lede-quiet">Posters could not be loaded.</p>}
+            </>
+          )}
         </div>
         <div className="spotlights" aria-label="Featured posters">
           {(spotlights.length ? spotlights : [0, 1, 2]).map((movie, index) => (

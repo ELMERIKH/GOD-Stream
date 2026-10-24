@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import axios from '../API/auth';
-import { Container } from 'react-bootstrap';
-import { useParams} from "react-router-dom";
-function Comments({ user,movie}) {
+import React, { useState, useEffect } from "react";
+import axios from "../API/auth";
+
+function Comments({ user, movie }) {
   const [comments, setComments] = useState([]);
-  const email = localStorage.getItem('email');
-  const [text, setText] = useState('');
-  
-
- 
-  
-
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState("");
+  const [note, setNote] = useState("");
+  const [posting, setPosting] = useState(false);
+  const email = localStorage.getItem("email");
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     const fetchData = async () => {
       try {
         const res = await axios.get(`/api/comments/getall?movie=${encodeURIComponent(movie || "")}`);
@@ -22,6 +20,8 @@ function Comments({ user,movie}) {
         }
       } catch {
         if (!cancelled) setComments([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -29,53 +29,84 @@ function Comments({ user,movie}) {
     return () => {
       cancelled = true;
     };
-  },[movie]);
+  }, [movie]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if(email!==null){
-      const res = await axios.post('/api/comments/create', {
-        text,
-        email: user,
-        movieId: movie
-        
-      });
-      alert('comment submited')
-      console.log(res.data);
-      setText('');
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const body = text.trim();
+    if (!body || posting) return;
+    if (email === null) {
+      setNote("Log in to post a comment.");
+      return;
     }
-    else   alert('you need to log in to post comment')
-    
-    
-    
+    setPosting(true);
+    setNote("");
+    try {
+      const res = await axios.post("/api/comments/create", {
+        text: body,
+        email: user,
+        movieId: movie,
+      });
+      const created = res.data?.comment || res.data;
+      setComments((current) => [
+        {
+          _id: created?._id || `local-${Date.now()}`,
+          email: created?.email || user || email,
+          text: created?.text || body,
+        },
+        ...current,
+      ]);
+      setText("");
+      setNote("Comment posted.");
+    } catch {
+      setNote("Comment could not be posted.");
+    } finally {
+      setPosting(false);
+    }
   };
 
   return (
-    <Container>
-
-<form className="panel-form comment-form" onSubmit={handleSubmit}>
-      <input
-        type="text"
-        placeholder="Enter comment text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <input type="hidden" value={user || ""} />
-      <input type="hidden" value={movie || ""} />
-      <button type="submit">Submit</button>
-    </form>
-      
-      <h2>Comments</h2>
-      <div className="comment-list">
-      {comments.map(comment => (
-        <div key={comment._id}>
-          <h3>{comment.email}</h3>
-          <p>{comment.text}</p>
+    <section className="comments">
+      <div className="comments__head">
+        <h2>Comments</h2>
+        <span>{loading ? "Loading" : `${comments.length}`}</span>
+      </div>
+      <form className="comment-form" onSubmit={handleSubmit}>
+        <textarea
+          placeholder="Share a thought about this title"
+          value={text}
+          rows={3}
+          onChange={(event) => setText(event.target.value)}
+        />
+        <button type="submit" disabled={posting || !text.trim()}>
+          {posting ? "Posting" : "Post comment"}
+        </button>
+      </form>
+      {note ? <p className="comments__note">{note}</p> : null}
+      {loading ? (
+        <div className="comment-list" aria-hidden="true">
+          <div className="comment-card is-loading" />
+          <div className="comment-card is-loading" />
         </div>
-      ))}
-    </div>
-    </Container>
+      ) : null}
+      {!loading && comments.length === 0 ? (
+        <div className="comments__empty">
+          <p>No comments yet</p>
+          <span>Be the first to leave a note on this title.</span>
+        </div>
+      ) : null}
+      {!loading && comments.length > 0 ? (
+        <div className="comment-list">
+          {comments.map((comment) => (
+            <article key={comment._id} className="comment-card">
+              <h3>{comment.email || "Viewer"}</h3>
+              <p>{comment.text}</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
-};
+}
 
 export default Comments;

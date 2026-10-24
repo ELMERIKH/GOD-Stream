@@ -137,16 +137,113 @@ img {
   filter: brightness(1.05);
 }
 
+.comments {
+  margin-top: 1.6rem;
+}
+
+.comments__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.comments__head h2 {
+  margin: 0;
+}
+
+.comments__head span {
+  color: #fda4af;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .comment-form {
+  display: grid;
+  gap: 0.7rem;
   width: 100%;
-  margin: 0 0 1.25rem;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.comment-form textarea {
+  width: 100%;
+  min-height: 96px;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #101014;
+  color: var(--text);
+  resize: vertical;
+}
+
+.comment-form button {
+  justify-self: start;
+  width: auto;
+  min-height: 42px;
+  padding: 0.55rem 1.05rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fb7185, var(--gold));
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.comment-form button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.comments__note {
+  margin: 0 0 0.8rem;
+  color: #fecdd3;
+}
+
+.comments__empty {
+  padding: 1.35rem 1rem;
+  border-radius: 16px;
+  border: 1px dashed rgba(253, 164, 175, 0.45);
+  background: rgba(225, 29, 72, 0.06);
+  text-align: center;
+}
+
+.comments__empty p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.comments__empty span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+
+.comment-card {
+  margin: 0 0 0.65rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+}
+
+.comment-card.is-loading {
+  min-height: 78px;
+  border-color: transparent;
 }
 
 .comment-list h3 {
-  margin: 1rem 0 0.15rem;
+  margin: 0 0 0.2rem;
   font-family: var(--font);
-  font-size: 0.95rem;
-  color: var(--gold);
+  font-size: 0.92rem;
+  color: #fda4af;
 }
 
 .comment-list p {

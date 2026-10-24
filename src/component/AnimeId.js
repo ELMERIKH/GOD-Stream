@@ -4,7 +4,7 @@ import "./movie.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
-import CatalogSkeleton from "./CatalogSkeleton";
+import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
 import {
   getAnimeDetail,
   loadEpisodeServers,
@@ -109,11 +109,7 @@ function Anime() {
   }
 
   if (loading) {
-    return (
-      <div className="search-box">
-        <CatalogSkeleton />
-      </div>
-    );
+    return <CatalogSkeleton variant="watch" label="Opening the player" />;
   }
 
   if (!movie) {
@@ -131,7 +127,13 @@ function Anime() {
 
   const episodes = movie.episodes || [];
   const episode = episodes[selectedEpisode] || null;
-  const watchLinks = movie.watchLinks || [];
+  const seenSites = new Set();
+  const watchLinks = (movie.watchLinks || []).filter((link) => {
+    const key = String(link.label || link.url || "").trim().toLowerCase();
+    if (!key || seenSites.has(key)) return false;
+    seenSites.add(key);
+    return true;
+  });
   const preview = !embedUrl && !episode?.episodeId && movie.preview?.embed ? movie.preview : null;
 
   return (
@@ -148,8 +150,15 @@ function Anime() {
             />
           </div>
         ) : (
-          <div className="stream-frame stream-frame--empty">
-            <p>{embedNote || "Choose a stream source"}</p>
+          <div className={`stream-frame stream-frame--empty${embedNote === "Loading player" ? " is-loading" : ""}`}>
+            {embedNote === "Loading player" ? (
+              <div className="player-loader">
+                <LoaderMark />
+                <p>Loading player</p>
+              </div>
+            ) : (
+              <p>{embedNote || "Choose a stream source"}</p>
+            )}
           </div>
         )}
         {servers.length > 0 ? (
