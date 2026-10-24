@@ -14,6 +14,7 @@ import {
   readerPageUrls,
   searchManga,
   sankaChapterPageInfo,
+  weebRequestUrl,
 } from "./catalog";
 import { buildReaderSources } from "../component/readerSources";
 
@@ -835,6 +836,54 @@ test("Sanka comic chapter pages keep chapter 1 and the latest chapter", () => {
   });
   expect(shinigami[0].id).toBe("sanka:shinigami:abc");
   expect(shinigami[0].number).toBe("135");
+});
+
+test("an AniList manga route requests the Weeb proxy when the page is not localhost", async () => {
+  expect(weebRequestUrl("/search/data?text=Chainsaw%20Man", "streamable-theallmovies-com.onrender.com"))
+    .toMatch(/^\/api\/weebcentral\/search\/data/);
+  expect(weebRequestUrl("/series/01J76XYCRVY3QGYAMRR3STW941/full-chapter-list", "streamable-theallmovies-com.onrender.com"))
+    .toBe("/api/weebcentral/series/01J76XYCRVY3QGYAMRR3STW941/full-chapter-list");
+  expect(weebRequestUrl("/search/data?text=Chainsaw%20Man", "localhost")).toMatch(/^https:\/\/weebcentral\.com\//);
+
+  const previous = window.location;
+  delete window.location;
+  window.location = { hostname: "streamable-theallmovies-com.onrender.com", href: "https://streamable-theallmovies-com.onrender.com/Manga/anilist%3A105778" };
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("graphql.anilist.co")) {
+      return jsonResponse({
+        data: {
+          Media: {
+            id: 105778,
+            title: { romaji: "Chainsaw Man", english: "Chainsaw Man" },
+            description: "Devil hunter",
+            coverImage: { extraLarge: "https://s4.anilist.co/csm.jpg" },
+            averageScore: 84,
+            chapters: 232,
+          },
+        },
+      });
+    }
+    if (href.startsWith("/api/weebcentral/search/data")) {
+      return textResponse('<span data-tip="Chainsaw Man"><a href="https://weebcentral.com/series/01J76XYCRVY3QGYAMRR3STW941/Chainsaw-Man">Chainsaw Man</a></span>');
+    }
+    if (href.startsWith("/api/weebcentral/series/01J76XYCRVY3QGYAMRR3STW941/full-chapter-list")) {
+      return textResponse('<a href="/chapters/01K2AXPVE6A005AV4D5ZC7G2NQ"><span class="">Chapter 232</span></a>');
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  try {
+    const detail = await getMangaDetail("anilist:105778");
+    const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((href) => href.startsWith("/api/weebcentral/search/data"))).toBe(true);
+    expect(urls.some((href) => href.startsWith("https://weebcentral.com/"))).toBe(false);
+    expect(detail.chapters.map((chapter) => chapter.number)).toEqual(["232"]);
+    expect(detail.chapters[0].id).toMatch(/^weebchapter:/);
+    expect(detail.notice).not.toMatch(/not chapter pages/);
+  } finally {
+    window.location = previous;
+  }
 });
 
 test("an AniList manga id with a Weeb Central match does not stay on an empty AniList chapter list", async () => {

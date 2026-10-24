@@ -31,6 +31,7 @@ test("deep links return the app and missing assets stay 404", async () => {
     const manga = await request(port, "/Manga/04f6660b-0018-452d-844a-a205594dd66d");
     const anime = await request(port, "/Anime/anilist%3A195516");
     const encodedManga = await request(port, "/Manga/kiryuu%3Amartial-peak");
+    const chainsaw = await request(port, "/Manga/anilist%3A105778");
     const asset = await request(port, "/static/app.js");
     const missing = await request(port, "/static/missing.js");
     assert.equal(home.status, 200);
@@ -45,6 +46,10 @@ test("deep links return the app and missing assets stay 404", async () => {
     assert.notEqual(anime.body, "Not Found");
     assert.equal(encodedManga.status, 200);
     assert.match(encodedManga.body, /StreamGod/);
+    assert.equal(chainsaw.status, 200);
+    assert.match(chainsaw.type, /text\/html/);
+    assert.match(chainsaw.body, /StreamGod/);
+    assert.notEqual(chainsaw.body, "Not Found");
     assert.equal(asset.status, 200);
     assert.match(asset.body, /console.log/);
     assert.equal(missing.status, 404);

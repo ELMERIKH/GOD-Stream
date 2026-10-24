@@ -290,6 +290,7 @@ function cached(key, loader, ttl = LIST_TTL, fresh = false) {
     .then(loader)
     .then((value) => {
       const empty = Array.isArray(value) ? value.length === 0 : value?.items?.length === 0;
+      if (empty && value?.noStore) throw value;
       const keep = empty ? Math.min(ttl, 90 * 1000) : ttl;
       const clean = value && typeof value === "object" && !Array.isArray(value)
         ? { ...value, stale: false }
@@ -1042,16 +1043,36 @@ const WEEB = "https://weebcentral.com";
 const WEEB_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const WEEB_PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "scans.lastation.us", "official.lowee.us"]);
 
-function weebUrl(pathAndQuery) {
-  if (process.env.NODE_ENV !== "test" && typeof window !== "undefined") {
-    return `/api/weebcentral${pathAndQuery}`;
-  }
+function pageHostname() {
+  if (typeof window === "undefined" || !window.location) return "";
+  return String(window.location.hostname || "");
+}
+
+// The browser always calls the same-origin proxy, including a deployed host
+// such as onrender.com. Jest keeps the public host on localhost so existing
+// mocks stay stable, and uses the proxy when the page hostname is not local.
+export function weebRequestUrl(pathAndQuery, hostname = pageHostname()) {
+  const host = String(hostname || "").toLowerCase();
+  const local = !host || host === "localhost" || host === "127.0.0.1";
+  if (process.env.NODE_ENV === "test" && local) return `${WEEB}${pathAndQuery}`;
+  if (typeof window !== "undefined" || !local) return `/api/weebcentral${pathAndQuery}`;
   return `${WEEB}${pathAndQuery}`;
 }
 
+function weebUrl(pathAndQuery) {
+  return weebRequestUrl(pathAndQuery);
+}
+
+export function weebPageRequestUrl(absolute, hostname = pageHostname()) {
+  const host = String(hostname || "").toLowerCase();
+  const local = !host || host === "localhost" || host === "127.0.0.1";
+  if (process.env.NODE_ENV === "test" && local) return absolute;
+  if (typeof window !== "undefined" || !local) return `/api/weeb-image?url=${encodeURIComponent(absolute)}`;
+  return absolute;
+}
+
 function weebPageUrl(absolute) {
-  if (process.env.NODE_ENV === "test" || typeof window === "undefined") return absolute;
-  return `/api/weeb-image?url=${encodeURIComponent(absolute)}`;
+  return weebPageRequestUrl(absolute);
 }
 
 function decodeHtml(value) {
@@ -1828,6 +1849,11 @@ export function loadMangaSources(title) {
       } catch {
         // Komikstation still covers a manhwa when no English scan matched.
       }
+    }
+    if (!sources.length) {
+      const missed = new Error("No chapter pages");
+      missed.noStore = true;
+      throw missed;
     }
     return sources;
   }, 10 * 60 * 1000);
