@@ -69,6 +69,7 @@ export function visibleRailEntries(items, selectedIndex, query, cap = RAIL_CAP) 
 
 function WatchRail({ label, query, onQuery, items, selectedIndex, onSelect, emptyNote }) {
   const length = items?.length || 0;
+  const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState(0);
   const [seenQuery, setSeenQuery] = useState(query);
   const [seenLength, setSeenLength] = useState(length);
@@ -84,10 +85,30 @@ function WatchRail({ label, query, onQuery, items, selectedIndex, onSelect, empt
     [items, selectedIndex, query, pageOffset]
   );
   const filterId = `${label}-filter`.replace(/\s+/g, "-").toLowerCase();
+  const panelId = `${filterId}-panel`;
   const paging = !String(query || "").trim() && (hasEarlier || hasNewer);
+  const closePanel = () => setOpen(false);
 
   return (
-    <aside className="watch-rail" aria-label={label}>
+    <div className={`watch-rail-slot${open ? " is-open" : ""}`}>
+      <button
+        type="button"
+        className="watch-rail-toggle"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {label}
+      </button>
+      {open ? (
+        <button
+          type="button"
+          className="watch-rail-backdrop"
+          aria-label={`Close ${label}`}
+          onClick={closePanel}
+        />
+      ) : null}
+      <aside id={panelId} className={`watch-rail${open ? " is-open" : ""}`} aria-label={label}>
       <label className="watch-rail__label" htmlFor={filterId}>
         {label}
         {items?.length ? <span>{items.length}</span> : null}
@@ -109,7 +130,10 @@ function WatchRail({ label, query, onQuery, items, selectedIndex, onSelect, empt
                   type="button"
                   className={index === selectedIndex ? "is-active" : ""}
                   aria-current={index === selectedIndex ? "true" : undefined}
-                  onClick={() => onSelect(index)}
+                  onClick={() => {
+                    onSelect(index);
+                    closePanel();
+                  }}
                 >
                   {item.title}
                 </button>
@@ -147,7 +171,8 @@ function WatchRail({ label, query, onQuery, items, selectedIndex, onSelect, empt
             : "Filter to jump to a number."}
         </p>
       ) : null}
-    </aside>
+      </aside>
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
-import { nextRailOffset, railWindow } from "./WatchRail";
+import { fireEvent, render, screen } from "@testing-library/react";
+import WatchRail, { nextRailOffset, railWindow } from "./WatchRail";
 
 test("a newest-first episode rail can page back to episode 1", () => {
   const episodes = Array.from({ length: 100 }, (_, index) => ({
@@ -38,6 +39,38 @@ test("an oldest-first chapter rail starts at the newest page and can reach chapt
   const earliest = railWindow(chapters, 134, "", offset, 36);
   expect(earliest.visible.some((row) => row.item.number === 1)).toBe(true);
   expect(earliest.visible.some((row) => row.item.number === 135)).toBe(true);
+});
+
+test("the mobile chapter panel is closed by default", () => {
+  const onSelect = jest.fn();
+  render(
+    <WatchRail
+      label="Chapters"
+      query=""
+      onQuery={() => {}}
+      items={[{ number: 423, title: "Chapter 423" }]}
+      selectedIndex={0}
+      onSelect={onSelect}
+      emptyNote="No chapter list is available for this title."
+    />
+  );
+  const rail = screen.getByRole("complementary", { name: "Chapters" });
+  const toggle = screen.getByRole("button", { name: "Chapters" });
+  expect(rail).not.toHaveClass("is-open");
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("button", { name: "Close Chapters" })).not.toBeInTheDocument();
+
+  fireEvent.click(toggle);
+  expect(rail).toHaveClass("is-open");
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+  fireEvent.click(screen.getByRole("button", { name: "Close Chapters" }));
+  expect(rail).not.toHaveClass("is-open");
+
+  fireEvent.click(toggle);
+  fireEvent.click(screen.getByRole("button", { name: "Chapter 423" }));
+  expect(onSelect).toHaveBeenCalledWith(0);
+  expect(rail).not.toHaveClass("is-open");
 });
 
 test("the filter still jumps to a chapter number", () => {

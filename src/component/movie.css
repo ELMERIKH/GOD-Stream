@@ -829,6 +829,16 @@ body {
   min-width: 0;
 }
 
+.watch-rail-slot {
+  min-width: 0;
+  min-height: 0;
+}
+
+.watch-rail-toggle,
+.watch-rail-backdrop {
+  display: none;
+}
+
 .watch-rail {
   display: flex;
   flex-direction: column;
@@ -841,6 +851,12 @@ body {
   background: #101014;
   position: sticky;
   top: calc(var(--header-h) + 0.75rem);
+}
+
+@media (min-width: 801px) {
+  .watch-rail-slot {
+    align-self: stretch;
+  }
 }
 
 .watch-rail__label {
@@ -1133,8 +1149,51 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .watch-rail-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-height: 40px;
+    margin: 0.15rem 0 0.35rem;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(251, 113, 133, 0.55);
+    background: #1a0d12;
+    color: #fecdd3;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .watch-rail-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .watch-rail {
-    max-height: 280px;
+    display: none;
+    position: fixed;
+    z-index: 35;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: calc(var(--header-h) + 0.75rem);
+    max-height: min(70vh, 560px);
+    width: auto;
+  }
+
+  .watch-rail.is-open {
+    display: flex;
+  }
+
+  .watch-rail-slot.is-open .watch-rail-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 34;
+    border: 0;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    cursor: pointer;
   }
 
   .watch-layout--reader {
@@ -1154,9 +1213,8 @@ body {
     order: 1;
   }
 
-  .watch-layout--reader .watch-rail {
+  .watch-layout--reader .watch-rail-slot {
     order: 2;
-    max-height: 240px;
   }
 
   .watch-layout--reader .reader-strip,

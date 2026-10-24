@@ -4,6 +4,16 @@ import './Header.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { AuthicateContext } from './Auth'
 
+const SLEEPING_CAT = [
+  "          z z z",
+  "      * * * * * *",
+  "    * *  - -  * *",
+  "   *    * * *    ****",
+  "   *               *",
+  "    * * * * * * * *",
+  "       *       *",
+].join("\n");
+
 const Header = () => {
   const [authInfo, setAuthInfo] = useContext(AuthicateContext)
   const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('isLoggedIn') === 'true');
@@ -31,6 +41,7 @@ const Header = () => {
             </svg>
           </span>
           <span className="brand__name">StreamGod</span>
+          <pre className="brand__cat" aria-hidden="true">{SLEEPING_CAT}</pre>
         </Link>
 
         <button

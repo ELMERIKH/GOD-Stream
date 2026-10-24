@@ -3,6 +3,12 @@
 // Consumet https://consumet-api-m8mf.onrender.com : Gogoanime search is an empty list.
 // Zoro and AnimePahe return HTTP 500. MangaPill page CDNs answer 403, so those
 // image buttons are not offered. Used only as a chapter lookup, never the grid.
+// docs.consumet.org names https://api.consumet.org. That host answers 451 and
+// its manga routes redirect to the GitHub install readme, so it is not called.
+// Comick api.comick.dev lists English Kagurabachi through chapter 135 and has
+// no chapter 136, but get_images is empty (no page URL). HiAnime, FlixHQ, and
+// Mangakakalot did not answer. Asura and Gogoanime return HTML, not a new
+// playable URL. None of those become a source pill or embed.
 // Shikimori https://shikimori.io/api : CORS *, YouTube trailer/opening embeds.
 // Sanka https://www.sankavollerei.web.id : CORS *. Episode servers become player buttons.
 // Komikstation chapter images and Kiryuu covers come from the same host.

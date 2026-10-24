@@ -22,6 +22,7 @@
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  min-width: 0;
   text-decoration: none;
   color: var(--text);
 }
@@ -45,9 +46,23 @@
   letter-spacing: -0.03em;
 }
 
+.brand__cat {
+  margin: 0;
+  flex: 0 0 auto;
+  color: #f6f1e8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 4.4px;
+  line-height: 1.05;
+  letter-spacing: 0.45px;
+  white-space: pre;
+  user-select: none;
+  pointer-events: none;
+}
+
 .header__nav {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 0.35rem;
 }
 
@@ -106,6 +121,7 @@
 
 .nav-toggle {
   display: none;
+  flex-shrink: 0;
   width: 42px;
   height: 42px;
   padding: 0;
@@ -127,6 +143,19 @@
 }
 
 @media (max-width: 800px) {
+  .brand {
+    gap: 0.45rem;
+  }
+
+  .brand__name {
+    font-size: 1.2rem;
+  }
+
+  .brand__cat {
+    font-size: 4.2px;
+    letter-spacing: 0.35px;
+  }
+
   .nav-toggle {
     display: flex;
   }
