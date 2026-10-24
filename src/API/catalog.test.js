@@ -7,6 +7,7 @@ import {
   listManga,
   loadEpisodeEmbed,
   loadEpisodeServers,
+  loadMangaSources,
   searchManga,
 } from "./catalog";
 
@@ -525,4 +526,192 @@ test("a failed refresh keeps the last anime list and retry bypasses it", async (
   } finally {
     Date.now = now;
   }
+});
+
+test("MangaDex chapter feed pages through every chapter and keeps the hosted language", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/manga/kagura/feed")) {
+      const offset = Number(new URL(href).searchParams.get("offset") || "0");
+      if (offset === 0) {
+        const data = Array.from({ length: 100 }, (_, index) => {
+          const number = index + 1;
+          if (number === 40) {
+            return {
+              id: "en-40",
+              attributes: {
+                chapter: "40",
+                title: "English",
+                pages: 8,
+                translatedLanguage: "en",
+                externalUrl: null,
+              },
+            };
+          }
+          return {
+            id: `es-${number}`,
+            attributes: {
+              chapter: String(number),
+              title: number === 1 ? "Mision" : "",
+              pages: 10,
+              translatedLanguage: "es-la",
+              externalUrl: null,
+            },
+          };
+        });
+        return jsonResponse({ result: "ok", total: 105, data });
+      }
+      if (offset === 100) {
+        return jsonResponse({
+          result: "ok",
+          total: 105,
+          data: [
+            {
+              id: "es-135",
+              attributes: {
+                chapter: "135",
+                title: "Comienza la guerra",
+                pages: 14,
+                translatedLanguage: "es-la",
+                externalUrl: null,
+              },
+            },
+            {
+              id: "en-133",
+              attributes: {
+                chapter: "133",
+                title: "External",
+                pages: 0,
+                translatedLanguage: "en",
+                externalUrl: "https://mangaplus.shueisha.co.jp/viewer/1",
+              },
+            },
+          ],
+        });
+      }
+      return jsonResponse({ result: "ok", total: 105, data: [] });
+    }
+    if (href.includes("/manga/kagura")) {
+      return jsonResponse({
+        result: "ok",
+        data: {
+          id: "kagura",
+          attributes: { title: { en: "Kagurabachi" }, description: {} },
+          relationships: [],
+        },
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const detail = await getMangaDetail("mangadex:kagura");
+  expect(detail.chapters.some((chapter) => chapter.id === "es-135" && chapter.pages === 14)).toBe(true);
+  expect(detail.chapters.some((chapter) => String(chapter.number) === "1")).toBe(true);
+  expect(detail.chapters.some((chapter) => chapter.id === "en-40" || chapter.id === "en-133")).toBe(false);
+  expect(detail.chapters.every((chapter) => chapter.language === "es-la" && chapter.pages > 0)).toBe(true);
+  expect(detail.notice).toMatch(/Chapter 136 is not on MangaDex/);
+  expect(detail.notice).toMatch(/Showing chapter 135/);
+  const feedUrls = global.fetch.mock.calls.map((call) => String(call[0])).filter((href) => href.includes("/feed"));
+  expect(feedUrls.some((href) => href.includes("offset=100"))).toBe(true);
+  expect(feedUrls.every((href) => href.includes("includeExternalUrl=0"))).toBe(true);
+
+  const feedCalls = feedUrls.length;
+  const again = await getMangaDetail("mangadex:kagura");
+  expect(again.chapters).toHaveLength(detail.chapters.length);
+  expect(global.fetch.mock.calls.filter((call) => String(call[0]).includes("/feed"))).toHaveLength(feedCalls);
+});
+
+test("MangaDex prefers a hosted language over a longer list that stops earlier", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/feed")) {
+      return jsonResponse({
+        result: "ok",
+        total: 2,
+        data: [
+          {
+            id: "en-12",
+            attributes: { chapter: "12", title: "", pages: 4, translatedLanguage: "en", externalUrl: null },
+          },
+          {
+            id: "es-9",
+            attributes: { chapter: "9", title: "", pages: 30, translatedLanguage: "es-la", externalUrl: null },
+          },
+        ],
+      });
+    }
+    if (href.includes("/manga/blue")) {
+      return jsonResponse({
+        result: "ok",
+        data: {
+          id: "blue",
+          attributes: { title: { en: "Blue Box" }, description: {} },
+          relationships: [],
+        },
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const detail = await getMangaDetail("mangadex:blue");
+  expect(detail.chapters).toHaveLength(1);
+  expect(detail.chapters[0].id).toBe("en-12");
+  expect(detail.notice).toBe("");
+});
+
+test("loadMangaSources uses Komikstation when MangaDex has no hosted pages", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/feed")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [
+          {
+            id: "external-only",
+            attributes: {
+              chapter: "1",
+              pages: 0,
+              translatedLanguage: "en",
+              externalUrl: "https://mangaplus.shueisha.co.jp/viewer/1",
+            },
+          },
+        ],
+      });
+    }
+    if (href.includes("api.mangadex.org")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [
+          {
+            id: "mp-1",
+            attributes: { title: { en: "Martial Peak" }, description: {} },
+            relationships: [],
+          },
+        ],
+      });
+    }
+    if (href.includes("/comic/kiryuu/search/")) {
+      return jsonResponse({ seriesList: [{ title: "Martial Peak", slug: "martial-peak" }] });
+    }
+    if (href.includes("/comic/kiryuu/manga/")) {
+      return jsonResponse({ title: "Martial Peak", synopsis: "A climber.", imageSrc: "" });
+    }
+    if (href.includes("/comic/komikstation/manga/")) {
+      return jsonResponse({
+        title: "Martial Peak",
+        synopsis: "A climber.",
+        imageSrc: "https://example.com/martial.jpg",
+        chapters: [{ slug: "martial-peak-chapter-1", title: "Chapter 1" }],
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const sources = await loadMangaSources("Martial Peak");
+  expect(sources).toHaveLength(1);
+  expect(sources[0].id).toBe("komikstation");
+  expect(sources[0].chapters[0].id).toBe("komikstation:martial-peak-chapter-1");
+  expect(sources[0].chapters[0].pages).toBeGreaterThan(0);
 });

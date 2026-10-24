@@ -132,20 +132,18 @@ function CatalogBrowser({ kind, preset }) {
         <div className="movie-component">
           {items.map((item) => (
             <div key={item.id} className="movie-card">
-              <img src={item.image || POSTER_PLACEHOLDER} alt={item.title} loading="lazy" referrerPolicy="no-referrer" onError={onPosterError} />
-              <h2>
-                <Link to={`${detailBase}/${encodeURIComponent(item.id)}`} className="h2">
-                  {item.title}
-                </Link>
-              </h2>
-              <ul className="ep">
-                <li>{sourceLabel(item.source)}</li>
-                {item.rating ? <li>Score {item.rating}</li> : null}
-                {kind === "anime" && item.nextEpisode ? <li>Next ep {item.nextEpisode}</li> : null}
-                {kind === "anime" && !item.nextEpisode && item.episodeNumber ? (
-                  <li>{item.episodeNumber} eps</li>
-                ) : null}
-              </ul>
+              <Link to={`${detailBase}/${encodeURIComponent(item.id)}`} className="movie-card__link">
+                <img src={item.image || POSTER_PLACEHOLDER} alt={item.title} loading="lazy" referrerPolicy="no-referrer" onError={onPosterError} />
+                <h2 className="h2">{item.title}</h2>
+                <ul className="ep">
+                  <li>{sourceLabel(item.source)}</li>
+                  {item.rating ? <li>Score {item.rating}</li> : null}
+                  {kind === "anime" && item.nextEpisode ? <li>Next ep {item.nextEpisode}</li> : null}
+                  {kind === "anime" && !item.nextEpisode && item.episodeNumber ? (
+                    <li>{item.episodeNumber} eps</li>
+                  ) : null}
+                </ul>
+              </Link>
             </div>
           ))}
           <footer>

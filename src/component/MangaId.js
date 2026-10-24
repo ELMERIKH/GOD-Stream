@@ -7,47 +7,7 @@ import Comments from "./comments";
 import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
 import WatchRail from "./WatchRail";
 import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
-
-function isImageChapter(chapter) {
-  if (!chapter?.id || !chapter.pages) return false;
-  return !String(chapter.id).startsWith("mangapill:");
-}
-
-function readerIdentity(detail) {
-  const chapters = detail?.chapters || [];
-  if (chapters.some((chapter) => String(chapter.id || "").startsWith("komikstation:"))) {
-    return { id: "komikstation", label: "Komikstation" };
-  }
-  if (chapters.some((chapter) => String(chapter.id || "").startsWith("mangapill:"))) {
-    return { id: "mangapill", label: "MangaPill" };
-  }
-  if (chapters.some((chapter) => chapter.id && chapter.pages && !String(chapter.id).includes(":"))) {
-    return { id: "mangadex", label: "MangaDex" };
-  }
-  return { id: detail?.source || "catalog", label: sourceLabel(detail?.source) };
-}
-
-function buildSources(manga, extraSources) {
-  const sources = [];
-  const identity = readerIdentity(manga);
-  const primary = (manga?.chapters || []).filter(isImageChapter);
-  if (primary.length && identity.id !== "mangapill") {
-    sources.push({ id: identity.id, label: identity.label, chapters: primary });
-  }
-  (extraSources || []).forEach((source) => {
-    if (!source?.id || source.id === "mangapill") return;
-    const chapters = (source.chapters || []).filter(isImageChapter);
-    if (!chapters.length || sources.some((item) => item.id === source.id)) return;
-    sources.push({ id: source.id, label: source.label || sourceLabel(source.id), chapters });
-  });
-  if (!sources.length && manga?.chapters?.length) {
-    const listed = (manga.chapters || []).filter((chapter) => !String(chapter.id || "").startsWith("mangapill:"));
-    if (listed.length && identity.id !== "mangapill") {
-      sources.push({ id: identity.id, label: identity.label, chapters: listed });
-    }
-  }
-  return sources;
-}
+import { buildReaderSources, isImageChapter, newestChapterIndex, visibleReaderNotice } from "./readerSources";
 
 function MangaId() {
   const { id } = useParams();
@@ -56,6 +16,7 @@ function MangaId() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [chapterIndex, setChapterIndex] = useState(0);
+  const [chapterPick, setChapterPick] = useState(0);
   const [chapterQuery, setChapterQuery] = useState("");
   const [pages, setPages] = useState([]);
   const [pagesLoading, setPagesLoading] = useState(false);
@@ -63,6 +24,7 @@ function MangaId() {
   const [failedPages, setFailedPages] = useState({});
   const [pageTries, setPageTries] = useState({});
   const skipChapterScroll = useRef(true);
+  const followNewest = useRef(true);
   const [extraSources, setExtraSources] = useState([]);
   const [sourcesReady, setSourcesReady] = useState(false);
   const [activeSource, setActiveSource] = useState("");
@@ -74,6 +36,7 @@ function MangaId() {
     setLoading(true);
     setError("");
     setManga(null);
+    followNewest.current = true;
     setChapterIndex(0);
     setChapterQuery("");
     setPages([]);
@@ -115,11 +78,20 @@ function MangaId() {
     };
   }, [manga]);
 
-  const sources = useMemo(() => buildSources(manga, extraSources), [manga, extraSources]);
+  const chooseChapter = (index) => {
+    followNewest.current = false;
+    setChapterIndex(index);
+    setChapterPick((value) => value + 1);
+  };
+  const sources = useMemo(() => buildReaderSources(manga, extraSources), [manga, extraSources]);
   const currentSource = sources.find((source) => source.id === activeSource) || sources[0] || null;
   const chapters = currentSource?.chapters || [];
-  const safeIndex = chapters[chapterIndex] ? chapterIndex : 0;
+  const newestIndex = newestChapterIndex(chapters);
+  const safeIndex = followNewest.current
+    ? (chapters.length ? newestIndex : 0)
+    : (chapters[chapterIndex] ? chapterIndex : 0);
   const chapter = chapters[safeIndex] || null;
+  const readerNotice = visibleReaderNotice(manga, currentSource);
 
   useEffect(() => {
     if (!manga) return undefined;
@@ -127,8 +99,9 @@ function MangaId() {
     if (!chapter?.id || !isImageChapter(chapter)) {
       const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id) && source.chapters.some(isImageChapter));
       if (next) {
+        followNewest.current = true;
         setActiveSource(next.id);
-        setChapterIndex(0);
+        setChapterIndex(newestChapterIndex(next.chapters));
         setPageNote("");
         return undefined;
       }
@@ -154,8 +127,9 @@ function MangaId() {
           failedSources.current.add(sourceId);
           const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id));
           if (next) {
+            followNewest.current = true;
             setActiveSource(next.id);
-            setChapterIndex(0);
+            setChapterIndex(newestChapterIndex(next.chapters));
             setPages([]);
             setPageNote("");
             return;
@@ -170,8 +144,9 @@ function MangaId() {
         failedSources.current.add(sourceId);
         const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id));
         if (next) {
+          followNewest.current = true;
           setActiveSource(next.id);
-          setChapterIndex(0);
+          setChapterIndex(newestChapterIndex(next.chapters));
           setPages([]);
           setPageNote("");
           return;
@@ -235,8 +210,9 @@ function MangaId() {
                   className={source.id === currentSource?.id ? "is-active" : ""}
                   onClick={() => {
                     failedSources.current.delete(source.id);
+                    followNewest.current = true;
                     setActiveSource(source.id);
-                    setChapterIndex(0);
+                    setChapterIndex(newestChapterIndex(source.chapters));
                   }}
                 >
                   {source.label}
@@ -248,19 +224,20 @@ function MangaId() {
             <button
               type="button"
               disabled={safeIndex === 0}
-              onClick={() => setChapterIndex((value) => Math.max(0, value - 1))}
+              onClick={() => chooseChapter(Math.max(0, safeIndex - 1))}
             >
               Previous chapter
             </button>
             <button
               type="button"
               disabled={!chapters.length || safeIndex >= chapters.length - 1}
-              onClick={() => setChapterIndex((value) => Math.min(chapters.length - 1, value + 1))}
+              onClick={() => chooseChapter(Math.min(chapters.length - 1, safeIndex + 1))}
             >
               Next chapter
             </button>
             <span>{pageCount ? `${pageCount} pages · scroll` : "No pages"}</span>
           </div>
+          {readerNotice ? <p className="catalog-note">{readerNotice}</p> : null}
           {pageNote ? <p className="catalog-note">{pageNote}</p> : null}
           {pagesLoading ? (
             <div className="reader-page reader-page--loading" role="status" aria-live="polite">
@@ -268,7 +245,7 @@ function MangaId() {
               <p>Loading pages</p>
             </div>
           ) : pageCount > 0 ? (
-            <div className="reader-strip" id="reader-strip">
+            <div className="reader-strip" id="reader-strip" key={chapterPick}>
               {pages.map((src, index) => (
                 failedPages[index] ? (
                   <div key={`${src}:broken`} className="reader-page reader-page--broken" role="alert">
@@ -309,9 +286,7 @@ function MangaId() {
           onQuery={setChapterQuery}
           items={railItems}
           selectedIndex={safeIndex}
-          onSelect={(index) => {
-            setChapterIndex(index);
-          }}
+          onSelect={chooseChapter}
           emptyNote="No chapter list is available for this title."
         />
       </div>
@@ -327,7 +302,6 @@ function MangaId() {
           <p className="source-pill">{sourceLabel(manga.source)}</p>
           <h1>{manga.title}</h1>
           {manga.rating ? <p className="rate">Score {manga.rating}</p> : null}
-          {manga.notice ? <p className="catalog-note">{manga.notice}</p> : null}
           <p className="catalog-description">{manga.description || "No description is available."}</p>
         </div>
       </section>

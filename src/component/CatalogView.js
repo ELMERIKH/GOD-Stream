@@ -148,12 +148,12 @@ function CatalogView({
         )}
         {items.map((item) => (
           <div key={item.id} className="movie-card">
-            <Poster src={item.image} alt={item.title} />
-            <h2>
-              <Link to={href(item)} className="h2">{item.title}</Link>
-            </h2>
-            {item.rating != null && <p className="p">rating : {Number(item.rating).toFixed(1)}</p>}
-            {item.episodes ? <ul className="ep">{item.episodes} eps</ul> : null}
+            <Link to={href(item)} className="movie-card__link">
+              <Poster src={item.image} alt={item.title} />
+              <h2 className="h2">{item.title}</h2>
+              {item.rating != null && <p className="p">rating : {Number(item.rating).toFixed(1)}</p>}
+              {item.episodes ? <ul className="ep">{item.episodes} eps</ul> : null}
+            </Link>
             {isAdmin && (
               <button type="button" className="btn btn-warning" onClick={() => navigate(`/Update/${item.id}`)}>Update</button>
             )}
