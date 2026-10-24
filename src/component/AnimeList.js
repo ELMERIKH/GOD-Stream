@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate,Link } from 'react-router-dom';
 import './movie.css'
+import CatalogSkeleton from './CatalogSkeleton';
 
 function AnimeHome() {
     const [movies, setMovies] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     const email = localStorage.getItem('email');
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +52,7 @@ function AnimeHome() {
   
     useEffect(() => {
       async function fetchMovies() {
+        setLoading(true);
         const Movies = [];
     
      
@@ -77,7 +80,7 @@ function AnimeHome() {
     
 
       }
-      fetchMovies();
+      fetchMovies().finally(() => setLoading(false));
      
     }, []);
   
@@ -99,6 +102,7 @@ function AnimeHome() {
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Popular" ><button >Popular  </button></Link>
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Trending </button></Link>
 </td></div>
+      {loading && <CatalogSkeleton />}
       <div className='movie-component'>
         
          
@@ -106,7 +110,7 @@ function AnimeHome() {
           <div key={index} className="movie-row">
             {row.map((movie) => (
               <div key={movie.id }  className="movie-card">
-                <img src={movie.image} alt={movie.title} />
+                <img src={movie.image} alt={movie.title} loading="lazy" />
              <h2> <Link to={`/Anime/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
    <ul className='ep'>episode:{movie.episodeNumber}</ul>

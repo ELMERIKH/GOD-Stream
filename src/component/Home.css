@@ -59,8 +59,8 @@
 }
 
 .btn-gold {
-  background: linear-gradient(180deg, #f0c57a, var(--gold-deep));
-  color: #1a1206;
+  background: linear-gradient(180deg, #fb7185, var(--gold));
+  color: #ffffff;
 }
 
 .btn-ghost {
@@ -111,7 +111,7 @@
   z-index: 1;
   background:
     linear-gradient(180deg, transparent 20%, rgba(0, 0, 0, 0.5)),
-    linear-gradient(165deg, #e4b15a, #5c3b16);
+    linear-gradient(165deg, #e11d48, #4c0519);
 }
 
 .poster-c {
@@ -163,10 +163,28 @@
   font-size: 0.92rem;
 }
 
-.tile-movies { background: linear-gradient(180deg, rgba(228, 177, 90, 0.18), var(--bg-elev) 55%); }
+.tile-movies { background: linear-gradient(180deg, rgba(225, 29, 72, 0.28), var(--bg-elev) 55%); }
 .tile-shows { background: linear-gradient(180deg, rgba(88, 122, 156, 0.28), var(--bg-elev) 55%); }
 .tile-anime { background: linear-gradient(180deg, rgba(176, 92, 74, 0.28), var(--bg-elev) 55%); }
 .tile-manga { background: linear-gradient(180deg, rgba(92, 122, 96, 0.28), var(--bg-elev) 55%); }
+
+.closer {
+  margin-top: 3.5rem;
+  padding: 2rem;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(225, 29, 72, 0.16), var(--bg-elev));
+}
+
+.closer h2 {
+  margin: 0 0 0.4rem;
+}
+
+.closer p {
+  margin: 0 0 1.1rem;
+  color: var(--muted);
+  max-width: 36rem;
+}
 
 @media (max-width: 900px) {
   .hero {

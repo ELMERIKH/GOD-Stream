@@ -141,9 +141,11 @@ function AnimeList() {
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Popular" ><button >Popular  </button></Link>
 </td><td>                <Link style={{textDecoration: 'none',color:'black'}} to="/Anime/Trending" ><button >Trending  </button></Link>
 </td></div>
+      <label className="search-label" htmlFor="anime-search">Search</label>
       <input 
+        id="anime-search"
         type="text"
-        placeholder="Search movies..."
+        placeholder="Search anime..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
       />
@@ -154,7 +156,7 @@ function AnimeList() {
           <div key={index} className="movie-row">
             {row.map((movie) => (
               <div key={movie.id }  className="movie-card">
-                <img src={movie.image} alt={movie.title} />
+                <img src={movie.image} alt={movie.title} loading="lazy" />
              <h2> <Link to={`/Anime/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
                 

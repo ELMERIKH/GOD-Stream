@@ -88,9 +88,11 @@ function POKEList() {
   
     return (
       <div className="search-box">
+      <label className="search-label" htmlFor="poke-search">Search</label>
       <input 
+        id="poke-search"
         type="text"
-        placeholder="Search movies..."
+        placeholder="Search pokemon..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
       />
@@ -102,7 +104,7 @@ function POKEList() {
           <div key={index} className="movie-row">
             {row.map(movie => (
               <div key={movie.id} className="movie-card">
-                <img src={movie.image} alt={movie.title} />
+                <img src={movie.image} alt={movie.title} loading="lazy" />
              <h2> <Link to={`/movie/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
                

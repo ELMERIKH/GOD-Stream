@@ -130,9 +130,10 @@ function Manga() {
   
     return (
       <div className="search-box">
-      <ul><input 
+      <ul><label className="search-label" htmlFor="manga-search">Search</label><input 
+        id="manga-search"
         type="text"
-        placeholder="Search movies..."
+        placeholder="Search manga..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
       />
@@ -144,7 +145,7 @@ function Manga() {
           <div key={index} className="movie-row">
             {row.map((movie) => (
               <div key={movie.id }  className="movie-card">
-                <img src={movie.image} alt={movie.title} />
+                <img src={movie.image} alt={movie.title} loading="lazy" />
              <h2> <Link to={`/Manga/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
                 

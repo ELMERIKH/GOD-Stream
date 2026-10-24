@@ -1,17 +1,17 @@
 :root {
-  --bg: #09090b;
-  --bg-elev: #141418;
-  --bg-soft: #1c1c22;
-  --line: rgba(244, 228, 196, 0.14);
-  --text: #f6f1e8;
-  --muted: #b7b0a4;
-  --gold: #e4b15a;
-  --gold-deep: #a8742c;
-  --danger: #e15b4a;
+  --bg: #000000;
+  --bg-elev: #0c0c0d;
+  --bg-soft: #181818;
+  --line: #312e81;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --gold: #e11d48;
+  --gold-deep: #9f1239;
+  --danger: #ef4444;
   --radius: 18px;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
-  --font: "Outfit", "Segoe UI", sans-serif;
-  --display: "Fraunces", Georgia, serif;
+  --font: "Inter", "Segoe UI", sans-serif;
+  --display: "Inter", "Segoe UI", sans-serif;
   --header-h: 72px;
 }
 
@@ -42,9 +42,25 @@ h2,
 h3,
 h4 {
   font-family: var(--display);
-  font-weight: 560;
-  letter-spacing: -0.02em;
+  font-weight: 650;
+  letter-spacing: -0.03em;
   color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 a {
@@ -110,8 +126,8 @@ img {
   padding: 0.75rem 1rem;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, #f0c57a, var(--gold-deep));
-  color: #1a1206;
+  background: linear-gradient(180deg, #fb7185, var(--gold));
+  color: #ffffff;
   font-weight: 700;
   cursor: pointer;
 }

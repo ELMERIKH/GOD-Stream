@@ -45,6 +45,12 @@ const Home = () => {
           ))}
         </div>
       </section>
+
+      <section className="closer">
+        <h2>Pick a title and start talking</h2>
+        <p>Rate what you watch, then leave a comment for the next person.</p>
+        <Link className="btn-gold" to="/movies">Browse movies</Link>
+      </section>
     </div>
   );
 };

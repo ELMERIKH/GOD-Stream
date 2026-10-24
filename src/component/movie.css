@@ -49,7 +49,16 @@
   color: inherit;
 }
 
+.search-label {
+  display: block;
+  margin: 0 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .search-box button {
+  min-height: 44px;
   margin: 0;
   padding: 0.45rem 0.9rem;
   border-radius: 999px;
@@ -61,9 +70,20 @@
   cursor: pointer;
 }
 
+.search-box button.is-active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #ffffff;
+}
+
 .search-box button:hover {
   border-color: var(--gold);
   color: var(--gold);
+}
+
+.search-box button.is-active:hover {
+  background: var(--gold);
+  color: #ffffff;
 }
 
 .movie-component {
@@ -169,6 +189,7 @@
 }
 
 .pagination button {
+  min-height: 44px;
   margin: 0;
   padding: 0.55rem 0.95rem;
   border-radius: 999px;
@@ -304,4 +325,32 @@ select {
 
 body {
   background-color: var(--bg);
+}
+
+.catalog-skeleton {
+  margin-top: 1.25rem;
+}
+
+.catalog-skeleton p {
+  margin: 0 0 0.8rem;
+  color: var(--muted);
+}
+
+.catalog-skeleton__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 1.35rem 1rem;
+}
+
+.catalog-skeleton__card {
+  aspect-ratio: 2 / 3;
+  border-radius: 14px;
+  background: linear-gradient(100deg, #141416 30%, #2a2a32 50%, #141416 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }

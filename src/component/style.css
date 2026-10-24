@@ -54,8 +54,8 @@
   padding: 0.75rem 1rem;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, #f0c57a, var(--gold-deep));
-  color: #1a1206;
+  background: linear-gradient(180deg, #fb7185, var(--gold));
+  color: #ffffff;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
@@ -76,12 +76,12 @@
 .R {
   display: inline-block;
   margin: 0;
-  color: #1a1206;
+  color: #ffffff;
   font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
 }
 
 .auth-screen a.R {
-  color: #1a1206;
+  color: #ffffff;
 }

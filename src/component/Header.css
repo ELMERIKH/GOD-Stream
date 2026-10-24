@@ -32,8 +32,8 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: linear-gradient(160deg, #f3d7a1, var(--gold-deep));
-  color: #1a1206;
+  background: linear-gradient(160deg, #fb7185, var(--gold));
+  color: #ffffff;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -54,6 +54,10 @@
 .nav-link,
 .nav-login,
 .nav-logout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   text-decoration: none;
   color: var(--muted);
   background: transparent;

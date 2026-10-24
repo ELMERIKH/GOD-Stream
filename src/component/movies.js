@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate,Link } from 'react-router-dom';
 import './movie.css'
+import CatalogSkeleton from './CatalogSkeleton';
 
 
 function MovieList() {
@@ -11,6 +12,7 @@ function MovieList() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filteredMovies, setFilteredMovies] = useState([]);
     const [Url, setUrl] = useState('https://api.themoviedb.org/3/movie/now_playing?api_key=152f41397d36a9af171b938124f0281c');
+    const [loading, setLoading] = useState(true);
 
 
     const navigate = useNavigate()
@@ -53,6 +55,7 @@ function MovieList() {
     };
     useEffect(() => {
       async function fetchMovies() {
+        setLoading(true);
         let moviesData = [];
   
         if (searchTerm !== '') {
@@ -87,7 +90,7 @@ function MovieList() {
         setFilteredMovies(moviesData);
       }
   
-      fetchMovies();
+      fetchMovies().finally(() => setLoading(false));
     }, [searchTerm,Url]);
   
   
@@ -103,17 +106,20 @@ function MovieList() {
   
     return (
       <div className="search-box">
+     <label className="search-label" htmlFor="movie-search">Search</label>
      <input 
+        id="movie-search"
         type="text"
         placeholder="Search movies..."
         value={searchTerm}
         onChange={event => setSearchTerm(event.target.value)}
       />
-         <div><td>               <button onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/top_rated?api_key=152f41397d36a9af171b938124f0281c`)} >Top Rated  </button>
-</td><td>               <button onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/now_playing?api_key=152f41397d36a9af171b938124f0281c`)} >Lastest </button>
-</td><td>              <button onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c`)} >Popular  </button>
+         <div><td>               <button type="button" aria-pressed={Url.includes('/top_rated')} className={Url.includes('/top_rated') ? 'is-active' : undefined} onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/top_rated?api_key=152f41397d36a9af171b938124f0281c`)} >Top Rated  </button>
+</td><td>               <button type="button" aria-pressed={Url.includes('/now_playing')} className={Url.includes('/now_playing') ? 'is-active' : undefined} onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/now_playing?api_key=152f41397d36a9af171b938124f0281c`)} >Lastest </button>
+</td><td>              <button type="button" aria-pressed={Url.includes('/popular')} className={Url.includes('/popular') ? 'is-active' : undefined} onClick={() => handleUrlChange(`https://api.themoviedb.org/3/movie/popular?api_key=152f41397d36a9af171b938124f0281c`)} >Popular  </button>
 
 </td></div>
+      {loading && <CatalogSkeleton />}
       <div className='movie-component'>
         
          
@@ -121,7 +127,7 @@ function MovieList() {
           <div key={index} className="movie-row">
             {row.map(movie => (
               <div key={movie.id} className="movie-card">
-                <img src={movie.image} alt={movie.title} />
+                <img src={movie.image} alt={movie.title} loading="lazy" />
              <h4> <Link style={{textDecoration: 'none'}}to={`/movie/${movie.id}`}
    className="h2" > {movie.title} </Link></h4>
                 <p className='p'>rating : {movie.rating}</p>

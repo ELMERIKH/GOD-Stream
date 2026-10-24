@@ -107,7 +107,7 @@ function Trending() {
           <div key={index} className="movie-row">
             {row.map((movie) => (
               <div key={movie.id }  className="movie-card">
-                <img src={movie.image} alt={movie.title} />
+                <img src={movie.image} alt={movie.title} loading="lazy" />
              <h2> <Link to={`/Anime/${movie.id}`}
    className="h2" > {movie.title} </Link></h2>
   
