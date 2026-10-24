@@ -22,7 +22,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v10";
+const HTTP_KEY = "streamgod.http.v11";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -1027,9 +1027,13 @@ async function fallbackDetail(parsed, cached, search, loaders) {
       );
       if (alternate && loaders[alternate.source]) {
         const detail = await loaders[alternate.source](parseCatalogId(alternate.id).raw);
+        const loadNote = `Loaded from ${sourceLabel(detail.source)} because ${sourceLabel(parsed.source)} did not respond.`;
+        const kept = String(detail.notice || "").trim();
+        const keepChapter = /is not on /i.test(kept);
         return {
           ...detail,
-          notice: `Loaded from ${sourceLabel(detail.source)} because ${sourceLabel(parsed.source)} did not respond.`,
+          notice: keepChapter ? kept : loadNote,
+          loadNotice: keepChapter ? loadNote : "",
         };
       }
     } catch {

@@ -222,6 +222,7 @@ function Anime() {
         <button
           key={server.id || server.label}
           type="button"
+          title={server.label}
           className={[
             server.id === activeServer ? "is-active" : "",
             blockedServers.includes(server.id) ? "is-blocked" : "",
@@ -235,6 +236,7 @@ function Anime() {
         <button
           key={option.id}
           type="button"
+          title={option.label}
           className={activeServer === option.id ? "is-active" : ""}
           onClick={() => playEmbed(option)}
         >
@@ -242,12 +244,12 @@ function Anime() {
         </button>
       ))}
       {movie.preview?.embed ? (
-        <button type="button" className={activeServer === "trailer" ? "is-active" : ""} onClick={playTrailer}>
+        <button type="button" title={movie.preview.label || "Trailer"} className={activeServer === "trailer" ? "is-active" : ""} onClick={playTrailer}>
           {movie.preview.label || "Trailer"}
         </button>
       ) : null}
       {watchLinks.map((link) => (
-        <a key={link.url} className="source-link" href={link.url} target="_blank" rel="noopener noreferrer">
+        <a key={link.url} className="source-link" title={link.label} href={link.url} target="_blank" rel="noopener noreferrer">
           {link.label}
         </a>
       ))}

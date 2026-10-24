@@ -123,8 +123,9 @@ function CatalogBrowser({ kind, preset }) {
         </div>
       )}
       {!loading && !error && items.length === 0 && (
-        <div className="catalog-empty">
+        <div className="catalog-empty" role="status">
           <p>{query.length >= 2 ? `No ${kind} matched "${query}".` : `No ${kind} titles are available right now.`}</p>
+          <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button>
         </div>
       )}
 
@@ -132,7 +133,7 @@ function CatalogBrowser({ kind, preset }) {
         <div className="movie-component">
           {items.map((item) => (
             <div key={item.id} className="movie-card">
-              <Link to={`${detailBase}/${encodeURIComponent(item.id)}`} className="movie-card__link">
+              <Link to={`${detailBase}/${encodeURIComponent(item.id)}`} className="movie-card__link" title={item.title}>
                 <img src={item.image || POSTER_PLACEHOLDER} alt={item.title} loading="lazy" referrerPolicy="no-referrer" onError={onPosterError} />
                 <h2 className="h2">{item.title}</h2>
                 <ul className="ep">

@@ -6,7 +6,7 @@ const KEY = '152f41397d36a9af171b938124f0281c';
 
 const FILTERS = [
   { id: 'top_rated', label: 'Top Rated', path: `https://api.themoviedb.org/3/tv/top_rated?api_key=${KEY}` },
-  { id: 'airing_today', label: 'Lastest', path: `https://api.themoviedb.org/3/tv/airing_today?api_key=${KEY}` },
+  { id: 'airing_today', label: 'Latest', path: `https://api.themoviedb.org/3/tv/airing_today?api_key=${KEY}` },
   { id: 'popular', label: 'Popular', path: `https://api.themoviedb.org/3/tv/popular?api_key=${KEY}` },
 ];
 

@@ -70,7 +70,8 @@ export function visibleReaderNotice(manga, source) {
   const fromCatalog = String(manga?.notice || "").trim();
   const imageSource = Boolean(source?.chapters?.some(isImageChapter));
   const placeholder = /not chapter pages|no page images|another source matches|page images come from mangadex when/i.test(fromCatalog);
-  if (imageSource && placeholder) return fromSource;
+  const loadFailure = /did not respond/i.test(fromCatalog);
+  if (imageSource && (placeholder || (fromSource && loadFailure))) return fromSource;
   if (fromSource && fromCatalog && fromSource !== fromCatalog) return `${fromSource} ${fromCatalog}`;
   return fromSource || fromCatalog;
 }

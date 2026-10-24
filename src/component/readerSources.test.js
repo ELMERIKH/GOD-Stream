@@ -24,6 +24,23 @@ test("empty AniList chapters are replaced by a MangaDex source with page files",
   expect(visibleReaderNotice(manga, sources[0])).not.toMatch(/AniList/);
 });
 
+test("a missing-chapter note stays on its own when the catalog fell back", () => {
+  const manga = {
+    source: "mangadex",
+    title: "Kagurabachi",
+    notice: "Loaded from MangaDex because AniList did not respond.",
+    chapters: [],
+  };
+  const source = {
+    id: "sanka",
+    notice: "Chapter 136 is not on Sanka. Showing chapter 135.",
+    chapters: [{ id: "sanka:komikindo:kagurabachi-chapter-135", number: "135", title: "Chapter 135", pages: 1 }],
+  };
+  const note = visibleReaderNotice(manga, source);
+  expect(note).toBe("Chapter 136 is not on Sanka. Showing chapter 135.");
+  expect(note).not.toMatch(/did not respond/);
+});
+
 test("a Kiryuu title that already has Komikstation pages stays on that source", () => {
   const manga = {
     source: "kiryuu",

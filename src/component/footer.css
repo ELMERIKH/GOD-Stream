@@ -5,7 +5,7 @@
 }
 
 .site-footer__inner {
-  width: min(1180px, calc(100% - 2rem));
+  width: min(var(--page), calc(100% - 2rem));
   margin: 0 auto;
   padding: 1.1rem 0;
   display: flex;
@@ -45,6 +45,13 @@
   font-size: 0.92rem;
 }
 
-.footer__links a:hover {
-  color: var(--gold);
+.footer__links a:hover,
+.footer__links a:focus-visible {
+  color: #fecdd3;
+}
+
+.footer__links a:focus-visible {
+  outline: 2px solid #fb7185;
+  outline-offset: 3px;
+  border-radius: 6px;
 }

@@ -9,7 +9,7 @@
 }
 
 .header__inner {
-  width: min(1180px, calc(100% - 2rem));
+  width: min(var(--page), calc(100% - 2rem));
   margin: 0 auto;
   min-height: var(--header-h);
   display: flex;
@@ -71,9 +71,20 @@
 
 .nav-link:hover,
 .nav-link.active,
-.nav-login:hover {
+.nav-login:hover,
+.nav-link:focus-visible,
+.nav-login:focus-visible,
+.brand:focus-visible {
   color: var(--text);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-link:focus-visible,
+.nav-login:focus-visible,
+.brand:focus-visible,
+.nav-toggle:focus-visible {
+  outline: 2px solid #fb7185;
+  outline-offset: 3px;
 }
 
 .nav-link.active {

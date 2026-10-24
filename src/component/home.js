@@ -102,7 +102,7 @@ const Home = () => {
             <div key={index} className="rail__card is-loading" />
           ))}
           {titles.map((movie) => (
-            <Link key={movie.id} to={`/movie/${movie.id}`} className="rail__card">
+            <Link key={movie.id} to={`/movie/${movie.id}`} className="rail__card" title={movie.title}>
               <img src={imageUrl(movie.poster_path, 'w342')} alt={movie.title} />
               <span>{movie.title}</span>
             </Link>

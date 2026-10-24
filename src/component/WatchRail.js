@@ -136,7 +136,7 @@ function WatchRail({ label, query, onQuery, items, selectedIndex, onSelect, empt
             disabled={!hasNewer}
             onClick={() => setOffset((value) => nextRailOffset(length, value, "newer"))}
           >
-            Newer
+            Later
           </button>
         </div>
       ) : null}

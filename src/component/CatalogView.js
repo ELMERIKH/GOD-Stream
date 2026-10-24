@@ -78,12 +78,14 @@ function CatalogView({
   const [source, setSource] = useState('');
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
+  const [error, setError] = useState("");
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let ignore = false;
     setLoading(true);
     setStale(false);
+    setError("");
     loadRef.current(page, query, retryToken > 0)
       .then((result) => {
         if (ignore) return;
@@ -98,6 +100,7 @@ function CatalogView({
         setTotalPages(1);
         setSource('');
         setStale(false);
+        setError("The catalog could not be loaded. Try again in a moment.");
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -140,7 +143,13 @@ function CatalogView({
       )}
       {loading && <CatalogSkeleton />}
       <div className="movie-component">
-        {!loading && items.length === 0 && (
+        {!loading && error && (
+          <div className="catalog-error" role="alert">
+            <p>{error}</p>
+            <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button>
+          </div>
+        )}
+        {!loading && !error && items.length === 0 && (
           <div className="catalog-empty" role="status">
             <p>No titles loaded from the available sources.</p>
             <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button>
@@ -148,10 +157,10 @@ function CatalogView({
         )}
         {items.map((item) => (
           <div key={item.id} className="movie-card">
-            <Link to={href(item)} className="movie-card__link">
+            <Link to={href(item)} className="movie-card__link" title={item.title}>
               <Poster src={item.image} alt={item.title} />
               <h2 className="h2">{item.title}</h2>
-              {item.rating != null && <p className="p">rating : {Number(item.rating).toFixed(1)}</p>}
+              {item.rating != null && <p className="p">{Number(item.rating).toFixed(1)}</p>}
               {item.episodes ? <ul className="ep">{item.episodes} eps</ul> : null}
             </Link>
             {isAdmin && (

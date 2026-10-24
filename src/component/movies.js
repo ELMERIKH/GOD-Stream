@@ -6,7 +6,7 @@ const KEY = '152f41397d36a9af171b938124f0281c';
 
 const FILTERS = [
   { id: 'top_rated', label: 'Top Rated', path: `https://api.themoviedb.org/3/movie/top_rated?api_key=${KEY}` },
-  { id: 'now_playing', label: 'Lastest', path: `https://api.themoviedb.org/3/movie/now_playing?api_key=${KEY}` },
+  { id: 'now_playing', label: 'Latest', path: `https://api.themoviedb.org/3/movie/now_playing?api_key=${KEY}` },
   { id: 'popular', label: 'Popular', path: `https://api.themoviedb.org/3/movie/popular?api_key=${KEY}` },
 ];
 

@@ -92,6 +92,8 @@ function MangaId() {
     : (chapters[chapterIndex] ? chapterIndex : 0);
   const chapter = chapters[safeIndex] || null;
   const readerNotice = visibleReaderNotice(manga, currentSource);
+  const loadNotice = String(manga?.loadNotice || "").trim();
+  const showLoadNotice = Boolean(loadNotice && loadNotice !== readerNotice && !String(readerNotice || "").includes(loadNotice));
 
   useEffect(() => {
     if (!manga) return undefined;
@@ -193,7 +195,7 @@ function MangaId() {
 
   return (
     <div className="watch-page">
-      <div className="watch-layout">
+      <div className="watch-layout watch-layout--reader">
         <div className="watch-stage">
           {manga.stale ? (
             <div className="status-banner" role="status">
@@ -207,6 +209,7 @@ function MangaId() {
                 <button
                   key={source.id}
                   type="button"
+                  title={source.label}
                   className={source.id === currentSource?.id ? "is-active" : ""}
                   onClick={() => {
                     failedSources.current.delete(source.id);
@@ -220,6 +223,7 @@ function MangaId() {
               ))}
             </div>
           ) : null}
+          <h2 className="reader-chapter">{chapter?.title || "Choose a chapter"}</h2>
           <div className="reader-toolbar">
             <button
               type="button"
@@ -238,6 +242,7 @@ function MangaId() {
             <span>{pageCount ? `${pageCount} pages · scroll` : "No pages"}</span>
           </div>
           {readerNotice ? <p className="catalog-note">{readerNotice}</p> : null}
+          {showLoadNotice ? <p className="catalog-note">{loadNotice}</p> : null}
           {pageNote ? <p className="catalog-note">{pageNote}</p> : null}
           {pagesLoading ? (
             <div className="reader-page reader-page--loading" role="status" aria-live="polite">
