@@ -120,7 +120,7 @@ function CatalogBrowser({ kind, preset }) {
         <div className="movie-component">
           {items.map((item) => (
             <div key={item.id} className="movie-card">
-              <img src={item.image || POSTER_PLACEHOLDER} alt={item.title} loading="lazy" onError={onPosterError} />
+              <img src={item.image || POSTER_PLACEHOLDER} alt={item.title} loading="lazy" referrerPolicy="no-referrer" onError={onPosterError} />
               <h2>
                 <Link to={`${detailBase}/${encodeURIComponent(item.id)}`} className="h2">
                   {item.title}

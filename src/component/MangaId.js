@@ -136,6 +136,7 @@ function MangaId() {
             src={manga.image || POSTER_PLACEHOLDER}
             alt={manga.title}
             className="img-fluid rounded"
+            referrerPolicy="no-referrer"
             onError={onPosterError}
           />
           {manga.rating ? <h2 className="rate">Score {manga.rating}</h2> : null}
@@ -189,6 +190,7 @@ function MangaId() {
               className="reader-page"
               src={pages[pageIndex]}
               alt={`${manga.title} page ${pageIndex + 1}`}
+              referrerPolicy="no-referrer"
               onError={onPosterError}
             />
           ) : null}
