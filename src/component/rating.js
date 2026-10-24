@@ -16,13 +16,17 @@ function Rate() {
     const handleRatingChange = (event) => {
       setRating(event.target.value);
     }
-    const submitRating = async () => {
-      
+    const submitRating = async (event) => {
+      event.preventDefault();
     if(email!==null){
-      const res = await axios.patch(`http://localhost:9000/api/rating/${id}`, { rating });
-      console.log(res.data);
-      setSubmitting(true);
-      alert("thanks you for rating")
+      try {
+        const res = await axios.patch(`http://localhost:9000/api/rating/${id}`, { rating });
+        console.log(res.data);
+        setSubmitting(true);
+        alert("thanks you for rating")
+      } catch {
+        alert("Rating could not be saved.")
+      }
     }
     else{
       alert("You need to loggin")

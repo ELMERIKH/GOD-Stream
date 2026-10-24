@@ -13,15 +13,22 @@ function Comments({ user,movie}) {
 
 
   useEffect(() => {
-    const fetchData = async () => { 
-      const res = await axios.get(`/api/comments/getall?movie=${movie}`);
-    
-      setComments(res.data.comments);
-      console.log(res.data.comments)
-  
+    let cancelled = false;
+    const fetchData = async () => {
+      try {
+        const res = await axios.get(`/api/comments/getall?movie=${encodeURIComponent(movie || "")}`);
+        if (!cancelled) {
+          setComments(Array.isArray(res.data?.comments) ? res.data.comments : []);
+        }
+      } catch {
+        if (!cancelled) setComments([]);
+      }
     };
 
     fetchData();
+    return () => {
+      cancelled = true;
+    };
   },[movie]);
 
   const handleSubmit = async (e) => {
@@ -53,8 +60,8 @@ function Comments({ user,movie}) {
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      <input type="hidden" value={user}  />
-      <input type="hidden" value={movie} />
+      <input type="hidden" value={user || ""} />
+      <input type="hidden" value={movie || ""} />
       <button type="submit">Submit</button>
     </form>
       

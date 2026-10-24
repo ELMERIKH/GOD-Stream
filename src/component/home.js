@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Home.css';
-
-const KEY = '152f41397d36a9af171b938124f0281c';
+import { loadHomeBillboard } from '../API/catalog';
 
 const picks = [
   { to: '/movies', title: 'Movies', text: 'Now playing, popular, and top rated', tone: 'movies' },
@@ -21,16 +20,13 @@ const Home = () => {
 
   useEffect(() => {
     let ignore = false;
-    async function load() {
-      const res = await fetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${KEY}`);
-      if (!res.ok) throw new Error('posters unavailable');
-      const data = await res.json();
-      const rows = (data.results || []).filter((movie) => movie.poster_path && movie.backdrop_path);
-      if (!ignore) setTitles(rows);
-    }
-    load().catch(() => {
-      if (!ignore) setFailed(true);
-    });
+    loadHomeBillboard()
+      .then((rows) => {
+        if (!ignore) setTitles(rows);
+      })
+      .catch(() => {
+        if (!ignore) setFailed(true);
+      });
     return () => {
       ignore = true;
     };
