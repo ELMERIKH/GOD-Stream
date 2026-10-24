@@ -27,17 +27,26 @@ test("deep links return the app and missing assets stay 404", async () => {
   try {
     const home = await request(port, "/");
     const manga = await request(port, "/Manga/04f6660b-0018-452d-844a-a205594dd66d");
-    const anime = await request(port, "/Anime/anilist%3A21");
+    const anime = await request(port, "/Anime/anilist%3A195516");
+    const encodedManga = await request(port, "/Manga/kiryuu%3Amartial-peak");
     const asset = await request(port, "/static/app.js");
     const missing = await request(port, "/static/missing.js");
     assert.equal(home.status, 200);
+    assert.match(home.type, /text\/html/);
     assert.match(home.body, /StreamGod/);
     assert.equal(manga.status, 200);
+    assert.match(manga.type, /text\/html/);
     assert.match(manga.body, /StreamGod/);
     assert.equal(anime.status, 200);
+    assert.match(anime.type, /text\/html/);
+    assert.match(anime.body, /StreamGod/);
+    assert.notEqual(anime.body, "Not Found");
+    assert.equal(encodedManga.status, 200);
+    assert.match(encodedManga.body, /StreamGod/);
     assert.equal(asset.status, 200);
     assert.match(asset.body, /console.log/);
     assert.equal(missing.status, 404);
+    assert.equal(missing.body, "Not Found");
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(directory, { recursive: true, force: true });

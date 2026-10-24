@@ -152,9 +152,16 @@
 .spotlight.is-loading,
 .rail__card.is-loading,
 .copy-skeleton span {
-  background: linear-gradient(100deg, #141416 20%, #4c1524 48%, #141416 76%);
-  background-size: 220% 100%;
-  animation: home-shimmer 1.25s ease-in-out infinite;
+  background: linear-gradient(
+    105deg,
+    #141416 16%,
+    #3f1220 36%,
+    #fb7185 50%,
+    #3f1220 64%,
+    #141416 84%
+  );
+  background-size: 240% 100%;
+  animation: home-shimmer 1.6s ease-in-out infinite;
 }
 
 .copy-skeleton {

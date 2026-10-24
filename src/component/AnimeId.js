@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./movie.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -6,6 +6,7 @@ import Rate from "./rating";
 import Comments from "./comments";
 import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
 import WatchRail from "./WatchRail";
+import { animeEmbedOptions, firstAnimeEmbed } from "./animeEmbeds";
 import {
   getAnimeDetail,
   loadEpisodeServers,
@@ -15,11 +16,11 @@ import {
   sourceLabel,
 } from "../API/catalog";
 
-function malAnimeEmbed(malId, episodeNumber) {
-  const id = Number(malId);
-  const episode = Number(episodeNumber);
-  if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(episode) || episode <= 0) return "";
-  return `https://vidsrc.me/embed/anime/mal/${id}/${episode}`;
+function anilistIdFrom(movie) {
+  if (movie?.source !== "anilist") return null;
+  const raw = String(movie.id || "").split(":")[1];
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 function Anime() {
@@ -66,16 +67,24 @@ function Anime() {
 
   const episodes = movie?.episodes || [];
   const episode = episodes[selectedEpisode] || null;
-  const malEmbed = malAnimeEmbed(movie?.malId, episode?.number || (episodes.length ? 0 : 1));
+  const embedOptions = useMemo(
+    () => animeEmbedOptions({
+      malId: movie?.malId,
+      anilistId: anilistIdFrom(movie),
+      episode: episode?.number || (episodes.length ? 0 : 1),
+    }),
+    [movie, episode?.number, episodes.length]
+  );
 
   useEffect(() => {
     if (!movie) return undefined;
     if (!episode?.episodeId) {
       setServers([]);
       setBlockedServers([]);
-      if (malEmbed) {
-        setActiveServer("mal-vidsrc");
-        setEmbedUrl(malEmbed);
+      const next = firstAnimeEmbed(embedOptions);
+      if (next) {
+        setActiveServer(next.id);
+        setEmbedUrl(next.url);
         setEmbedNote("");
       } else {
         setActiveServer("");
@@ -85,6 +94,18 @@ function Anime() {
       return undefined;
     }
     let cancelled = false;
+    const playFallback = () => {
+      const next = firstAnimeEmbed(embedOptions);
+      if (!next) {
+        setActiveServer("");
+        setEmbedUrl("");
+        setEmbedNote("");
+        return;
+      }
+      setActiveServer(next.id);
+      setEmbedUrl(next.url);
+      setEmbedNote("");
+    };
     setEmbedUrl("");
     setEmbedNote("Loading player");
     setBlockedServers([]);
@@ -106,32 +127,17 @@ function Anime() {
           skipped.push(server.id);
         }
         setBlockedServers(skipped);
-        if (malEmbed) {
-          setActiveServer("mal-vidsrc");
-          setEmbedUrl(malEmbed);
-          setEmbedNote("");
-          return;
-        }
-        setActiveServer("");
-        setEmbedUrl("");
-        setEmbedNote("");
+        playFallback();
       })
       .catch(() => {
         if (cancelled) return;
         setServers([]);
-        if (malEmbed) {
-          setActiveServer("mal-vidsrc");
-          setEmbedUrl(malEmbed);
-          setEmbedNote("");
-          return;
-        }
-        setEmbedUrl("");
-        setEmbedNote("");
+        playFallback();
       });
     return () => {
       cancelled = true;
     };
-  }, [movie, selectedEpisode, episode?.episodeId, malEmbed]);
+  }, [movie, selectedEpisode, episode?.episodeId, embedOptions]);
 
   function chooseServer(server) {
     setActiveServer(server.id);
@@ -145,9 +151,10 @@ function Anime() {
           return;
         }
         setBlockedServers((current) => (current.includes(server.id) ? current : [...current, server.id]));
-        if (malEmbed) {
-          setActiveServer("mal-vidsrc");
-          setEmbedUrl(malEmbed);
+        const next = firstAnimeEmbed(embedOptions);
+        if (next) {
+          setActiveServer(next.id);
+          setEmbedUrl(next.url);
           setEmbedNote("");
           return;
         }
@@ -155,9 +162,10 @@ function Anime() {
         setEmbedNote("");
       })
       .catch(() => {
-        if (malEmbed) {
-          setActiveServer("mal-vidsrc");
-          setEmbedUrl(malEmbed);
+        const next = firstAnimeEmbed(embedOptions);
+        if (next) {
+          setActiveServer(next.id);
+          setEmbedUrl(next.url);
           setEmbedNote("");
           return;
         }
@@ -166,10 +174,11 @@ function Anime() {
       });
   }
 
-  function playMal() {
-    if (!malEmbed) return;
-    setActiveServer("mal-vidsrc");
-    setEmbedUrl(malEmbed);
+  function playEmbed(option) {
+    const next = firstAnimeEmbed(embedOptions, option?.id);
+    if (!next) return;
+    setActiveServer(next.id);
+    setEmbedUrl(next.url);
     setEmbedNote("");
   }
 
@@ -205,7 +214,7 @@ function Anime() {
     return true;
   });
   const loadingPlayer = embedNote === "Loading player";
-  const hasOffers = Boolean(servers.length || malEmbed || movie.preview?.embed || watchLinks.length || episode?.url);
+  const hasOffers = Boolean(servers.length || embedOptions.length || movie.preview?.embed || watchLinks.length || episode?.url);
 
   const sourceButtons = (
     <>
@@ -222,11 +231,16 @@ function Anime() {
           {server.label}
         </button>
       ))}
-      {malEmbed ? (
-        <button type="button" className={activeServer === "mal-vidsrc" ? "is-active" : ""} onClick={playMal}>
-          VidSrc
+      {embedOptions.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          className={activeServer === option.id ? "is-active" : ""}
+          onClick={() => playEmbed(option)}
+        >
+          {option.label}
         </button>
-      ) : null}
+      ))}
       {movie.preview?.embed ? (
         <button type="button" className={activeServer === "trailer" ? "is-active" : ""} onClick={playTrailer}>
           {movie.preview.label || "Trailer"}

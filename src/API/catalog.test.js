@@ -382,6 +382,44 @@ test("an earlier catalog source still wins when a later one answers first", asyn
   }
 });
 
+test("anilist official streaming sites stay as watch links", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("graphql.anilist.co")) {
+      return jsonResponse({
+        data: {
+          Media: {
+            id: 195516,
+            idMal: 61987,
+            title: { romaji: "Kusuriya no Hitorigoto 3rd Season", english: "The Apothecary Diaries Season 3" },
+            description: "Maomao",
+            coverImage: { extraLarge: "https://s4.anilist.co/apo.jpg" },
+            averageScore: 85,
+            episodes: 12,
+            trailer: { id: "YvNvvUeCztE", site: "youtube" },
+            streamingEpisodes: [],
+            externalLinks: [
+              { site: "Crunchyroll", url: "https://www.crunchyroll.com/series/G3KHEVDJ7/the-apothecary-diaries", type: "STREAMING" },
+              { site: "Netflix", url: "http://www.netflix.com/us/title/81712068", type: "STREAMING" },
+              { site: "Twitter", url: "https://twitter.com/kusuriya_PR", type: "SOCIAL" },
+            ],
+          },
+        },
+      });
+    }
+    if (href.includes("/anime/search/")) return jsonResponse({ data: { animeList: [] } });
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const detail = await getAnimeDetail("anilist:195516");
+  expect(detail.malId).toBe(61987);
+  expect(detail.episodes).toHaveLength(12);
+  expect(detail.watchLinks.map((link) => link.label)).toEqual(["Crunchyroll", "Netflix"]);
+  expect(detail.watchLinks[1].url).toMatch(/^https:\/\//);
+  expect(detail.preview.embed).toContain("YvNvvUeCztE");
+  expect(detail.notice).toMatch(/No Sanka stream/);
+});
+
 test("a failed refresh keeps the last anime list and retry bypasses it", async () => {
   let fail = false;
   global.fetch.mockImplementation((url) => {

@@ -494,6 +494,27 @@ function kitsuListPath(kind, preset, page) {
   return `/${kind}?${params.toString()}`;
 }
 
+function collectWatchLinks(externalLinks, streamed) {
+  const official = (externalLinks || [])
+    .filter((link) => String(link.type || "").toUpperCase() === "STREAMING" && link.url)
+    .map((link) => ({
+      label: link.site || "Watch",
+      url: String(link.url).replace(/^http:\/\//i, "https://"),
+    }));
+  const episodeLinks = (streamed || [])
+    .filter((episode) => episode.url)
+    .map((episode) => ({ label: episode.site || episode.title, url: episode.url }));
+  const watchLinks = [];
+  const seen = new Set();
+  [...official, ...episodeLinks].forEach((link) => {
+    const key = String(link.url || "");
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    watchLinks.push(link);
+  });
+  return watchLinks.slice(0, 8);
+}
+
 async function anilistDetail(rawId, type) {
   const query = `query ($id: Int, $type: MediaType) {
     Media(id: $id, type: $type) {
@@ -508,6 +529,7 @@ async function anilistDetail(rawId, type) {
       status
       trailer { id site }
       streamingEpisodes { title thumbnail url site }
+      externalLinks { site url type }
     }
   }`;
   const payload = await fetchJson(ANILIST, {
@@ -557,10 +579,7 @@ async function anilistDetail(rawId, type) {
             pages: 0,
           }))
         : [],
-    watchLinks: streamed
-      .filter((episode) => episode.url)
-      .slice(0, 6)
-      .map((episode) => ({ label: episode.site || episode.title, url: episode.url })),
+    watchLinks: collectWatchLinks(media.externalLinks, streamed),
     notice:
       type === "ANIME" && !streamed.length
         ? "No playable stream is listed for this title. The episode list is still shown."
@@ -1414,10 +1433,11 @@ async function enrichAnime(detail) {
   const episodes = playable.episodes || previewed.episodes || [];
   const malId = previewed.malId || playable.malId || null;
   const hasSanka = episodes.some((episode) => episode.episodeId);
+  const canEmbed = Boolean(malId) || previewed.source === "anilist" || playable.source === "anilist";
   const notice = hasSanka
     ? (playable.notice || previewed.notice || "")
-    : (malId
-      ? "No Sanka stream is listed. VidSrc can play the selected episode."
+    : (canEmbed
+      ? "No Sanka stream is listed. Players below can try this episode."
       : (playable.notice || previewed.notice || ""));
   return {
     ...previewed,

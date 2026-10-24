@@ -197,7 +197,7 @@ function MangaId() {
   }, [safeIndex, activeSource]);
 
   if (loading) {
-    return <CatalogSkeleton variant="watch" label="Opening the reader" />;
+    return <CatalogSkeleton variant="reader" label="Opening the reader" />;
   }
 
   if (!manga) {

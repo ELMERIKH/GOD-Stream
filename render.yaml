@@ -4,6 +4,9 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install --no-audit --no-fund --include=dev && npm run build
+    # Dashboard start command must be exactly `node server.js`. A static file
+    # server answers extension-less routes such as /Anime/anilist%3A195516
+    # with text/plain "Not Found" before React can route them.
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
