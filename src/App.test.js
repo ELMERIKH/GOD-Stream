@@ -17,5 +17,5 @@ import App from './App';
 
 test('renders the StreamGod wordmark', () => {
   render(<App />);
-  expect(screen.getByText(/StreamGod/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/StreamGod/i).length).toBeGreaterThan(0);
 });

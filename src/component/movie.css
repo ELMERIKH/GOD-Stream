@@ -465,6 +465,128 @@ body {
   border: 0;
 }
 
+.watch-page {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 1.25rem auto 2.5rem;
+}
+
+.watch-banner {
+  display: block;
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 16px;
+  margin-bottom: 0.9rem;
+}
+
+.watch-stage {
+  margin-bottom: 1.25rem;
+}
+
+.stream-frame {
+  width: 100%;
+}
+
+.stream-frame--empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.stream-frame--empty p {
+  margin: 0;
+}
+
+.source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.source-row button,
+.source-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #141418;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 680;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.source-row button:hover,
+.source-link:hover {
+  border-color: var(--gold);
+  color: #ffffff;
+}
+
+.source-row button.is-active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #ffffff;
+}
+
+.source-pill {
+  display: inline-flex;
+  margin: 0 0 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(225, 29, 72, 0.16);
+  color: #fecdd3;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.watch-meta {
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.watch-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+  background: #111;
+}
+
+.reader-toolbar button {
+  min-height: 40px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #141418;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.reader-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .watch-meta {
+    grid-template-columns: 96px 1fr;
+  }
+
+  .watch-banner {
+    height: 120px;
+  }
+}
+
 .player-frame,
 .player-video {
   display: block;

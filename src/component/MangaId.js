@@ -5,7 +5,21 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
 import CatalogSkeleton from "./CatalogSkeleton";
-import { findMangaReader, getMangaDetail, getMangaPages, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
+import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
+
+function readerIdentity(detail) {
+  const chapters = detail?.chapters || [];
+  if (chapters.some((chapter) => String(chapter.id || "").startsWith("komikstation:"))) {
+    return { id: "komikstation", label: "Komikstation" };
+  }
+  if (chapters.some((chapter) => String(chapter.id || "").startsWith("mangapill:"))) {
+    return { id: "mangapill", label: "MangaPill" };
+  }
+  if (chapters.some((chapter) => chapter.id && chapter.pages && !String(chapter.id).includes(":"))) {
+    return { id: "mangadex", label: "MangaDex" };
+  }
+  return { id: detail?.source || "catalog", label: sourceLabel(detail?.source) };
+}
 
 function MangaId() {
   const { id } = useParams();
@@ -18,6 +32,8 @@ function MangaId() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pagesLoading, setPagesLoading] = useState(false);
   const [pageNote, setPageNote] = useState("");
+  const [extraSources, setExtraSources] = useState([]);
+  const [activeSource, setActiveSource] = useState("");
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
@@ -27,6 +43,8 @@ function MangaId() {
     setManga(null);
     setChapterIndex(0);
     setPages([]);
+    setExtraSources([]);
+    setActiveSource("");
     getMangaDetail(id)
       .then((detail) => {
         if (!cancelled) setManga(detail);
@@ -44,30 +62,44 @@ function MangaId() {
 
   useEffect(() => {
     if (!manga?.title) return undefined;
-    const readable = (manga.chapters || []).filter((chapter) => chapter.id && chapter.pages);
-    if (readable.length >= 3) return undefined;
     let cancelled = false;
-    findMangaReader(manga.title)
-      .then((chapters) => {
-        if (cancelled || !Array.isArray(chapters) || chapters.length <= readable.length) return;
-        setChapterIndex(0);
-        setManga((current) => {
-          if (!current || current.id !== manga.id) return current;
-          return {
-            ...current,
-            chapters,
-            notice: "Chapter pages are from MangaPill.",
-          };
-        });
+    loadMangaSources(manga.title)
+      .then((sources) => {
+        if (!cancelled) setExtraSources(Array.isArray(sources) ? sources : []);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setExtraSources([]);
+      });
     return () => {
       cancelled = true;
     };
   }, [manga]);
 
+  const readablePrimary = (manga?.chapters || []).some((chapter) => chapter.id && chapter.pages);
+  const primaryIdentity = readerIdentity(manga);
+  const sources = [];
+  if (readablePrimary) {
+    sources.push({
+      id: primaryIdentity.id,
+      label: primaryIdentity.label,
+      chapters: manga.chapters,
+    });
+  }
+  extraSources.forEach((source) => {
+    if (source?.chapters?.length && !sources.some((item) => item.id === source.id)) sources.push(source);
+  });
+  if (!sources.length && manga?.chapters?.length) {
+    sources.push({
+      id: primaryIdentity.id,
+      label: primaryIdentity.label,
+      chapters: manga.chapters,
+    });
+  }
+  const currentSource = sources.find((source) => source.id === activeSource) || sources[0] || null;
+  const chapters = currentSource?.chapters || [];
+  const chapter = chapters[chapterIndex] || null;
+
   useEffect(() => {
-    const chapter = manga?.chapters?.[chapterIndex];
     if (!manga) return undefined;
     if (!chapter?.id || !chapter.pages) {
       setPages([]);
@@ -102,7 +134,7 @@ function MangaId() {
     return () => {
       cancelled = true;
     };
-  }, [manga, chapterIndex]);
+  }, [manga, chapter, chapterIndex]);
 
   if (loading) {
     return (
@@ -125,47 +157,45 @@ function MangaId() {
     );
   }
 
-  const chapters = manga.chapters || [];
   const pageCount = pages.length;
 
   return (
-    <div className="container my-5 catalog-detail">
-      <div className="row">
-        <div className="col-md-4">
-          <img
-            src={manga.image || POSTER_PLACEHOLDER}
-            alt={manga.title}
-            className="img-fluid rounded"
-            referrerPolicy="no-referrer"
-            onError={onPosterError}
-          />
-          {manga.rating ? <h2 className="rate">Score {manga.rating}</h2> : null}
-          <p className="catalog-note">{sourceLabel(manga.source)}</p>
+    <div className="watch-page">
+      <div className="watch-stage">
+        <div className="source-row" role="group" aria-label="Reading sources">
+          {sources.map((source) => (
+            <button
+              key={source.id}
+              type="button"
+              className={source.id === currentSource?.id ? "is-active" : ""}
+              onClick={() => {
+                setActiveSource(source.id);
+                setChapterIndex(0);
+                setPageIndex(0);
+              }}
+            >
+              {source.label}
+            </button>
+          ))}
         </div>
-        <div className="col-md-8">
-          <h1>{manga.title}</h1>
-          {manga.notice ? <p className="catalog-note">{manga.notice}</p> : null}
-          <div className="my-4">
-            <p className="catalog-description">{manga.description || "No description is available."}</p>
+        {chapters.length > 0 ? (
+          <div className="reader-toolbar">
+            <label htmlFor="chapter-select">Chapter</label>
+            <select
+              id="chapter-select"
+              value={chapters[chapterIndex] ? chapterIndex : 0}
+              onChange={(event) => setChapterIndex(Number(event.target.value))}
+            >
+              {chapters.map((entry, index) => (
+                <option key={`${entry.id || entry.number}-${index}`} value={index}>
+                  {entry.title}
+                </option>
+              ))}
+            </select>
           </div>
-          {chapters.length > 0 ? (
-            <div className="reader-toolbar">
-              <label htmlFor="chapter-select">Chapter</label>
-              <select
-                id="chapter-select"
-                value={chapterIndex}
-                onChange={(event) => setChapterIndex(Number(event.target.value))}
-              >
-                {chapters.map((chapter, index) => (
-                  <option key={`${chapter.id || chapter.number}-${index}`} value={index}>
-                    {chapter.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <p className="catalog-note">No chapter list is available for this title.</p>
-          )}
+        ) : (
+          <p className="catalog-note">No chapter list is available for this title.</p>
+        )}
           <div className="reader-toolbar">
             <button
               type="button"
@@ -194,16 +224,27 @@ function MangaId() {
               onError={onPosterError}
             />
           ) : null}
-          <div className="my-4">
-            <Rate />
-          </div>
-        </div>
       </div>
-      <div className="row my-5">
-        <div className="col-md-12">
-          <Comments user={email} movie={id} />
+      <section className="watch-meta">
+        <img
+          className="watch-poster"
+          src={manga.image || POSTER_PLACEHOLDER}
+          alt={manga.title}
+          referrerPolicy="no-referrer"
+          onError={onPosterError}
+        />
+        <div>
+          <p className="source-pill">{sourceLabel(manga.source)}</p>
+          <h1>{manga.title}</h1>
+          {manga.rating ? <p className="rate">Score {manga.rating}</p> : null}
+          {manga.notice ? <p className="catalog-note">{manga.notice}</p> : null}
+          <p className="catalog-description">{manga.description || "No description is available."}</p>
         </div>
+      </section>
+      <div className="my-4">
+        <Rate />
       </div>
+      <Comments user={email} movie={id} />
     </div>
   );
 }

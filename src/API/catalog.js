@@ -4,8 +4,9 @@
 // chapter image URLs (JPEG 200). Gogoanime search is an empty list. Zoro and AnimePahe
 // return HTTP 500. Used for manga pages and a fail-fast episode lookup, never the grid.
 // Shikimori https://shikimori.io/api : CORS *, YouTube trailer/opening embeds.
-// Sanka https://www.sankavollerei.web.id : CORS *. Anime episode servers and
-// Komikstation/Kiryuu chapter images. DesuStream frames are blocked; Filedon embeds load.
+// Sanka https://www.sankavollerei.web.id : CORS *. Episode servers become player buttons.
+// Komikstation chapter images and Kiryuu covers come from the same host.
+// Nozu https://nozu.me/api/v1 : CORS *. Covers, banners, and official stream links.
 // Not wired: AnimePahe (the public search answers with an anti-bot HTML page, and the
 // published API says it is waiting on a Cloudflare UAM fix — no bypass is included).
 // Fetch-Stream https://fetch-stream.vercel.app returns Vercel DEPLOYMENT_NOT_FOUND.
@@ -14,13 +15,14 @@
 
 const ANILIST = "https://graphql.anilist.co";
 const SANKA = "https://www.sankavollerei.web.id";
+const NOZU = "https://nozu.me/api/v1";
 const KITSU = "https://kitsu.io/api/edge";
 const MANGADEX = "https://api.mangadex.org";
 const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v3";
+const HTTP_KEY = "streamgod.http.v4";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -52,6 +54,7 @@ export function sourceLabel(source) {
       kitsu: "Kitsu",
       mangadex: "MangaDex",
       sanka: "Sanka",
+      nozu: "Nozu",
       kiryuu: "Kiryuu",
       komikstation: "Komikstation",
       mangapill: "MangaPill",
@@ -446,6 +449,10 @@ async function anilistDetail(rawId, type) {
             pages: 0,
           }))
         : [],
+    watchLinks: streamed
+      .filter((episode) => episode.url)
+      .slice(0, 6)
+      .map((episode) => ({ label: episode.site || episode.title, url: episode.url })),
     notice:
       type === "ANIME" && !streamed.length
         ? "No playable stream is listed for this title. The episode list is still shown."
@@ -664,33 +671,60 @@ export function clearCatalogCache() {
   }
 }
 
-function pickPlayableServer(server) {
-  const preferred = ["filedon", "vidhide", "mega", "blogs"];
-  const all = [];
+function collectServers(server) {
+  const preferred = ["filedon", "vidhide", "mega", "blogs", "odcdn", "odstream"];
+  const byName = new Map();
   (server?.qualities || []).forEach((quality) => {
-    (quality.serverList || []).forEach((entry) => all.push(entry));
+    const qualityLabel = String(quality.title || quality.quality || "").trim();
+    (quality.serverList || []).forEach((entry) => {
+      const name = String(entry.title || "").trim();
+      if (!name || !entry.serverId) return;
+      byName.set(name.toLowerCase(), {
+        id: entry.serverId,
+        name,
+        quality: qualityLabel,
+        label: qualityLabel ? `${name} ${qualityLabel}` : name,
+      });
+    });
   });
-  return [...all].sort((left, right) => {
+  return [...byName.values()].sort((left, right) => {
     const rank = (entry) => {
-      const name = String(entry.title || "").toLowerCase();
-      const index = preferred.findIndex((token) => name.includes(token));
+      const index = preferred.findIndex((token) => entry.name.toLowerCase().includes(token));
       return index === -1 ? preferred.length : index;
     };
     return rank(left) - rank(right);
-  })[0] || null;
+  });
+}
+
+export function loadEpisodeServers(episodeId) {
+  if (!episodeId) return Promise.resolve([]);
+  return cached(`sanka:servers:${episodeId}`, async () => {
+    const episode = await fetchJson(`${SANKA}/anime/episode/${encodeURIComponent(episodeId)}`);
+    const servers = collectServers(episode?.data?.server);
+    if (servers.length) return servers;
+    const fallback = episode?.data?.defaultStreamingUrl || "";
+    return fallback ? [{ id: "", name: "Default", quality: "", label: "Default", url: fallback }] : [];
+  }, 10 * 60 * 1000);
+}
+
+export function resolveEpisodeServer(server) {
+  if (!server) return Promise.resolve("");
+  if (server.url) return Promise.resolve(server.url);
+  if (!server.id) return Promise.resolve("");
+  return cached(`sanka:server:${server.id}`, async () => {
+    const resolved = await fetchJson(`${SANKA}/anime/server/${encodeURIComponent(server.id)}`);
+    return resolved?.data?.url || "";
+  }, 10 * 60 * 1000);
 }
 
 export function loadEpisodeEmbed(episodeId) {
-  if (!episodeId) return Promise.resolve("");
-  return cached(`sanka:embed:${episodeId}`, async () => {
-    const episode = await fetchJson(`${SANKA}/anime/episode/${encodeURIComponent(episodeId)}`);
-    const server = pickPlayableServer(episode?.data?.server);
-    if (server?.serverId) {
-      const resolved = await fetchJson(`${SANKA}/anime/server/${encodeURIComponent(server.serverId)}`);
-      if (resolved?.data?.url) return resolved.data.url;
+  return loadEpisodeServers(episodeId).then(async (servers) => {
+    for (const server of servers) {
+      const url = await resolveEpisodeServer(server);
+      if (url) return url;
     }
-    return episode?.data?.defaultStreamingUrl || "";
-  }, 10 * 60 * 1000);
+    return "";
+  });
 }
 
 export function getMangaPages(chapterId) {
@@ -1003,8 +1037,16 @@ async function listAnimeFresh(preset, page = 1) {
     all: { sort: "FAVOURITES_DESC" },
   }[preset] || { sort: "POPULARITY_DESC" };
 
+  const nozuPath = preset === "trending"
+    ? "/trending?type=anime"
+    : preset === "popular" || preset === "all"
+      ? "/popular?type=anime"
+      : "/latest?type=anime";
+
   return firstList([
+    () => (preset === "trending" ? nozuCollection(nozuPath, "anime") : Promise.resolve({ items: [] })),
     () => anilistPage({ type: "ANIME", page, ...anilistPreset }),
+    () => nozuCollection(nozuPath, "anime"),
     () => {
       if (preset === "trending" && page === 1) {
         return kitsuCollection("/trending/anime?limit=20", "anime");
@@ -1018,6 +1060,7 @@ async function listAnimeFresh(preset, page = 1) {
 async function searchAnimeFresh(query, page = 1) {
   return firstList([
     () => anilistPage({ type: "ANIME", page, sort: "SEARCH_MATCH", search: query }),
+    () => nozuCollection(`/search?type=anime&q=${encodeURIComponent(query)}`, "anime"),
     () => {
       const params = new URLSearchParams();
       params.set("filter[text]", query);
@@ -1063,12 +1106,148 @@ export function findMangaReader(title) {
   return cached(key, () => loadMangapillChapters(title));
 }
 
+async function mangadexReader(title) {
+  const list = await mangadexList(1, title);
+  const hit = bestTitleMatch(title, list.items, (item) => item.title);
+  if (!hit) return null;
+  const chapters = (await mangadexChapters(parseCatalogId(hit.id).raw))
+    .filter((chapter) => chapter.pages > 0)
+    .slice(-40)
+    .reverse();
+  if (!chapters.length) return null;
+  return { id: "mangadex", label: "MangaDex", chapters };
+}
+
+export function loadMangaSources(title) {
+  const key = `manga-sources:${compactTitle(title)}`;
+  return cached(key, async () => {
+    const [dex, pill] = await Promise.allSettled([
+      mangadexReader(title),
+      loadMangapillChapters(title),
+    ]);
+    const sources = [];
+    if (dex.status === "fulfilled" && dex.value?.chapters?.length) sources.push(dex.value);
+    if (pill.status === "fulfilled" && Array.isArray(pill.value) && pill.value.length) {
+      sources.push({
+        id: "mangapill",
+        label: "MangaPill",
+        chapters: pill.value.slice(-80).reverse(),
+      });
+    }
+    return sources;
+  }, 10 * 60 * 1000);
+}
+
+function nozuTitle(title) {
+  if (!title) return "Untitled";
+  if (typeof title === "string") return title;
+  return title.english || title.romaji || title.native || "Untitled";
+}
+
+function nozuItem(row, kind) {
+  return {
+    id: `nozu:${row.slug}`,
+    source: "nozu",
+    title: nozuTitle(row.title),
+    image: row.cover_image || "",
+    banner: row.banner_image || "",
+    rating: row.average_score ?? null,
+    description: plainText(row.description),
+    episodeNumber: row.episodes || row.chapters || null,
+    kind,
+  };
+}
+
+async function nozuCollection(path, kind) {
+  const payload = await fetchJson(`${NOZU}${path}`);
+  const rows = Array.isArray(payload.data) ? payload.data : [];
+  const page = Number(payload.meta?.current_page) || 1;
+  const last = Number(payload.meta?.last_page) || 1;
+  return {
+    items: rows.filter((row) => row.slug && row.cover_image).map((row) => nozuItem(row, kind)),
+    hasNext: page < last,
+    source: "nozu",
+  };
+}
+
+async function nozuAnimeDetail(slug) {
+  const payload = await fetchJson(`${NOZU}/anime/${encodeURIComponent(slug)}`);
+  const data = payload.data;
+  if (!data?.title) return null;
+  const item = nozuItem(data, "anime");
+  const links = [];
+  const seen = new Set();
+  (data.external_links || []).forEach((link) => {
+    if (link.type && link.type !== "STREAMING") return;
+    const url = String(link.url || "").replace(/^http:\/\//i, "https://");
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    links.push({ label: link.site || "Stream", url });
+  });
+  (data.streaming_episodes || []).slice(0, 8).forEach((episode) => {
+    const url = String(episode.url || "").replace(/^http:\/\//i, "https://");
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    links.push({ label: episode.site || episode.title || "Episode", url });
+  });
+  const trailer = data.trailer || {};
+  const trailerId = String(trailer.site || "youtube").toLowerCase() === "youtube"
+    ? (trailer.id || youtubeId(trailer.url || trailer.site))
+    : "";
+  const detail = {
+    ...item,
+    id: `nozu:${slug}`,
+    episodes: [],
+    chapters: [],
+    watchLinks: links.slice(0, 8),
+    preview: trailerId ? { label: "Trailer", embed: youtubeEmbed(trailerId) } : null,
+    notice: "",
+    kind: "anime",
+  };
+  remember([detail]);
+  return detail;
+}
+
+async function nozuMangaDetail(slug) {
+  const payload = await fetchJson(`${NOZU}/manga/${encodeURIComponent(slug)}`);
+  const data = payload.data;
+  if (!data?.title) return null;
+  const item = nozuItem(data, "manga");
+  let chapters = [];
+  let notice = "Nozu has the catalog entry. Chapter pages load when another source matches this title.";
+  try {
+    const title = item.title;
+    const found = await kiryuuSearch(title);
+    const hit = found.items.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
+    if (hit) {
+      const readable = await kiryuuDetail(parseCatalogId(hit.id).raw);
+      if (readable?.chapters?.some((chapter) => chapter.id && chapter.pages)) {
+        chapters = readable.chapters;
+        notice = readable.notice || "Chapter pages come from Komikstation.";
+      }
+    }
+  } catch {
+    // The page source can still arrive from the reader buttons.
+  }
+  const detail = {
+    ...item,
+    id: `nozu:${slug}`,
+    episodes: [],
+    chapters,
+    notice,
+    kind: "manga",
+  };
+  remember([detail]);
+  return detail;
+}
+
 async function getAnimeDetailFresh(catalogId) {
   const parsed = parseCatalogId(catalogId);
   const loaders = {
     anilist: (raw) => anilistDetail(raw, "ANIME"),
     kitsu: (raw) => kitsuAnimeDetail(raw),
     sanka: (raw) => sankaAnimeDetail(raw),
+    nozu: (raw) => nozuAnimeDetail(raw),
   };
   try {
     if (!loaders[parsed.source]) throw new Error("Unknown anime source");
@@ -1085,6 +1264,7 @@ async function getAnimeDetailFresh(catalogId) {
 async function listMangaFresh(page = 1) {
   return firstList([
     () => kiryuuList(page),
+    () => nozuCollection("/popular?type=manga", "manga"),
     () => mangadexList(page),
     () => kitsuCollection(kitsuListPath("manga", "popular", page), "manga"),
     () => anilistPage({ type: "MANGA", page, sort: "POPULARITY_DESC" }),
@@ -1094,6 +1274,7 @@ async function listMangaFresh(page = 1) {
 async function searchMangaFresh(query, page = 1) {
   return firstList([
     () => kiryuuSearch(query),
+    () => nozuCollection(`/search?type=manga&q=${encodeURIComponent(query)}`, "manga"),
     () => mangadexList(page, query),
     () => {
       const params = new URLSearchParams();
@@ -1114,6 +1295,7 @@ async function getMangaDetailFresh(catalogId) {
     anilist: (raw) => anilistDetail(raw, "MANGA"),
     kiryuu: (raw) => kiryuuDetail(raw),
     komikstation: (raw) => komikstationDetail(raw),
+    nozu: (raw) => nozuMangaDetail(raw),
   };
   try {
     if (!loaders[parsed.source]) throw new Error("Unknown manga source");

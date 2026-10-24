@@ -5,6 +5,7 @@ import {
   listAnime,
   listManga,
   loadEpisodeEmbed,
+  loadEpisodeServers,
 } from "./catalog";
 
 function jsonResponse(body, status = 200) {
@@ -189,4 +190,42 @@ test("anime detail attaches Sanka episodes and prefers a filedon player", async 
     String(call[0]).includes("/anime/episode/")
   );
   expect(episodeCalls).toHaveLength(1);
+});
+
+test("episode source buttons keep the highest quality for each server", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/anime/episode/")) {
+      return jsonResponse({
+        data: {
+          server: {
+            qualities: [
+              {
+                title: "360p",
+                serverList: [
+                  { title: "filedon", serverId: "low" },
+                  { title: "vidhide", serverId: "vh" },
+                ],
+              },
+              {
+                title: "720p",
+                serverList: [
+                  { title: "filedon", serverId: "high" },
+                  { title: "mega", serverId: "mg" },
+                ],
+              },
+            ],
+          },
+        },
+      });
+    }
+    if (href.includes("/anime/server/high")) {
+      return jsonResponse({ data: { url: "https://filedon.co/embed/high" } });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const servers = await loadEpisodeServers("ep-1");
+  expect(servers.map((server) => server.label)).toEqual(["filedon 720p", "vidhide 360p", "mega 720p"]);
+  expect(await loadEpisodeEmbed("ep-1")).toBe("https://filedon.co/embed/high");
 });

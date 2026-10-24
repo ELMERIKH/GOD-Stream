@@ -25,7 +25,11 @@ const Header = () => {
     <header className="header">
       <div className="header__inner">
         <Link to="/" className="brand" onClick={closeMenu}>
-          <span className="brand__mark" aria-hidden="true">SG</span>
+          <span className="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="18" height="18" focusable="false">
+              <path d="M11 7.5v17l14-8.5-14-8.5z" fill="currentColor" />
+            </svg>
+          </span>
           <span className="brand__name">StreamGod</span>
         </Link>
 

@@ -94,8 +94,12 @@ function Movie() {
               
               </div>
               
-               )} <button title="Load URL 1" onClick={() => handleUrlChange('https://v2.vidsrc.me/embed/')}>Load URL 1</button>
-               <button title="Load URL 2" onClick={() => handleUrlChange('https://2embed.org/embed/')}>Load URL 2</button></div>
+               )}
+               <div className="source-row" role="group" aria-label="Movie sources">
+                 <button type="button" className={String(url).includes("vidsrc") ? "is-active" : ""} onClick={() => handleUrlChange("https://v2.vidsrc.me/embed/")}>VidSrc</button>
+                 <button type="button" className={String(url).includes("2embed") ? "is-active" : ""} onClick={() => handleUrlChange("https://2embed.org/embed/")}>2Embed</button>
+               </div>
+               </div>
           </div>
           <div className="my-4">
             <Rate />
