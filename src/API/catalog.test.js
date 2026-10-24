@@ -285,6 +285,103 @@ test("embed skips hosts that refuse iframes", async () => {
   expect(await loadEpisodeEmbed("ep-blocked")).toBe("https://odvidhide.com/embed/ok");
 });
 
+test("anime detail matches Sanka on an alternate title and stops there", async () => {
+  const searches = [];
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("graphql.anilist.co")) {
+      return jsonResponse({
+        data: {
+          Media: {
+            id: 16498,
+            idMal: 16498,
+            title: { romaji: "Shingeki no Kyojin", english: "Attack on Titan", native: "進撃の巨人" },
+            description: "Walls",
+            coverImage: { extraLarge: "https://s4.anilist.co/aot.jpg" },
+            averageScore: 85,
+            episodes: 1,
+            streamingEpisodes: [],
+          },
+        },
+      });
+    }
+    if (href.includes("/anime/search/")) {
+      const query = decodeURIComponent(href.split("/anime/search/")[1]);
+      searches.push(query);
+      if (query === "Shingeki no Kyojin") {
+        return jsonResponse({
+          data: {
+            animeList: [{ animeId: "shingeki-no-kyojin", title: "Shingeki no Kyojin", poster: "" }],
+          },
+        });
+      }
+      return jsonResponse({ data: { animeList: [] } });
+    }
+    if (href.includes("/anime/anime/")) {
+      return jsonResponse({
+        data: {
+          title: "Shingeki no Kyojin",
+          poster: "",
+          synopsis: { paragraphs: ["Walls"] },
+          episodeList: [{ eps: "1", episodeId: "snk-episode-1" }],
+        },
+      });
+    }
+    if (href.includes("shikimori.io")) return jsonResponse([]);
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const detail = await getAnimeDetail("anilist:16498");
+  expect(detail.malId).toBe(16498);
+  expect(detail.episodes[0].episodeId).toBe("snk-episode-1");
+  expect(searches).toEqual(["Attack on Titan", "Shingeki no Kyojin"]);
+});
+
+test("an earlier catalog source still wins when a later one answers first", async () => {
+  let release = () => {};
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/comic/kiryuu/home")) {
+      return gate.then(() => jsonResponse({
+        trending: [
+          {
+            slug: "martial-peak",
+            title: "Martial Peak",
+            imageSrc: "https://v7.kiryuu.to/cover.jpg",
+            rating: "8.5",
+          },
+        ],
+      }));
+    }
+    if (href.includes("nozu.me")) {
+      return jsonResponse({
+        data: [{ slug: "other", title: "Other", cover_image: "https://cdn.example/cover.jpg" }],
+        meta: { current_page: 1, last_page: 1 },
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const pending = listManga(1);
+  try {
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((url) => url.includes("/comic/kiryuu/home"))).toBe(true);
+    expect(urls.some((url) => url.includes("nozu.me"))).toBe(true);
+    release();
+    const result = await pending;
+    expect(result.source).toBe("kiryuu");
+    expect(result.items[0].id).toBe("kiryuu:martial-peak");
+  } finally {
+    release();
+  }
+});
+
 test("a failed refresh keeps the last anime list and retry bypasses it", async () => {
   let fail = false;
   global.fetch.mockImplementation((url) => {

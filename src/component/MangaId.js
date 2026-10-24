@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./movie.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
 import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
+import WatchRail from "./WatchRail";
 import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
+
+function isImageChapter(chapter) {
+  if (!chapter?.id || !chapter.pages) return false;
+  return !String(chapter.id).startsWith("mangapill:");
+}
 
 function readerIdentity(detail) {
   const chapters = detail?.chapters || [];
@@ -21,6 +27,28 @@ function readerIdentity(detail) {
   return { id: detail?.source || "catalog", label: sourceLabel(detail?.source) };
 }
 
+function buildSources(manga, extraSources) {
+  const sources = [];
+  const identity = readerIdentity(manga);
+  const primary = (manga?.chapters || []).filter(isImageChapter);
+  if (primary.length && identity.id !== "mangapill") {
+    sources.push({ id: identity.id, label: identity.label, chapters: primary });
+  }
+  (extraSources || []).forEach((source) => {
+    if (!source?.id || source.id === "mangapill") return;
+    const chapters = (source.chapters || []).filter(isImageChapter);
+    if (!chapters.length || sources.some((item) => item.id === source.id)) return;
+    sources.push({ id: source.id, label: source.label || sourceLabel(source.id), chapters });
+  });
+  if (!sources.length && manga?.chapters?.length) {
+    const listed = (manga.chapters || []).filter((chapter) => !String(chapter.id || "").startsWith("mangapill:"));
+    if (listed.length && identity.id !== "mangapill") {
+      sources.push({ id: identity.id, label: identity.label, chapters: listed });
+    }
+  }
+  return sources;
+}
+
 function MangaId() {
   const { id } = useParams();
   const email = localStorage.getItem("email");
@@ -28,15 +56,18 @@ function MangaId() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [chapterIndex, setChapterIndex] = useState(0);
+  const [chapterQuery, setChapterQuery] = useState("");
   const [pages, setPages] = useState([]);
+  const [pageIndex, setPageIndex] = useState(0);
   const [pagesLoading, setPagesLoading] = useState(false);
   const [pageNote, setPageNote] = useState("");
-  const [failedPages, setFailedPages] = useState({});
-  const [pageTries, setPageTries] = useState({});
-  const skipChapterScroll = useRef(true);
+  const [pageFailed, setPageFailed] = useState(false);
+  const [pageTry, setPageTry] = useState(0);
   const [extraSources, setExtraSources] = useState([]);
+  const [sourcesReady, setSourcesReady] = useState(false);
   const [activeSource, setActiveSource] = useState("");
   const [retryToken, setRetryToken] = useState(0);
+  const failedSources = useRef(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -44,9 +75,12 @@ function MangaId() {
     setError("");
     setManga(null);
     setChapterIndex(0);
+    setChapterQuery("");
     setPages([]);
     setExtraSources([]);
+    setSourcesReady(false);
     setActiveSource("");
+    failedSources.current = new Set();
     getMangaDetail(id, retryToken > 0)
       .then((detail) => {
         if (!cancelled) setManga(detail);
@@ -65,51 +99,48 @@ function MangaId() {
   useEffect(() => {
     if (!manga?.title) return undefined;
     let cancelled = false;
+    setSourcesReady(false);
     loadMangaSources(manga.title)
       .then((sources) => {
         if (!cancelled) setExtraSources(Array.isArray(sources) ? sources : []);
       })
       .catch(() => {
         if (!cancelled) setExtraSources([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSourcesReady(true);
       });
     return () => {
       cancelled = true;
     };
   }, [manga]);
 
-  const readablePrimary = (manga?.chapters || []).some((chapter) => chapter.id && chapter.pages);
-  const primaryIdentity = readerIdentity(manga);
-  const sources = [];
-  if (readablePrimary) {
-    sources.push({
-      id: primaryIdentity.id,
-      label: primaryIdentity.label,
-      chapters: manga.chapters,
-    });
-  }
-  extraSources.forEach((source) => {
-    if (source?.chapters?.length && !sources.some((item) => item.id === source.id)) sources.push(source);
-  });
-  if (!sources.length && manga?.chapters?.length) {
-    sources.push({
-      id: primaryIdentity.id,
-      label: primaryIdentity.label,
-      chapters: manga.chapters,
-    });
-  }
+  const sources = useMemo(() => buildSources(manga, extraSources), [manga, extraSources]);
   const currentSource = sources.find((source) => source.id === activeSource) || sources[0] || null;
   const chapters = currentSource?.chapters || [];
-  const chapter = chapters[chapterIndex] || null;
+  const safeIndex = chapters[chapterIndex] ? chapterIndex : 0;
+  const chapter = chapters[safeIndex] || null;
 
   useEffect(() => {
     if (!manga) return undefined;
-    if (!chapter?.id || !chapter.pages) {
+    const sourceId = currentSource?.id || "";
+    if (!chapter?.id || !isImageChapter(chapter)) {
+      const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id) && source.chapters.some(isImageChapter));
+      if (next) {
+        setActiveSource(next.id);
+        setChapterIndex(0);
+        setPageNote("");
+        return undefined;
+      }
       setPages([]);
+      setPageIndex(0);
       setPagesLoading(false);
       setPageNote(
-        chapter
-          ? "This chapter has no page images. The cover, description, and chapter list are still here."
-          : manga.notice || "No chapters are available."
+        !sourcesReady
+          ? "Looking for a reader with page images."
+          : (chapter
+            ? "This chapter has no page images."
+            : manga.notice || "No chapters are available.")
       );
       return undefined;
     }
@@ -120,12 +151,32 @@ function MangaId() {
     getMangaPages(chapter.id)
       .then((nextPages) => {
         if (cancelled) return;
+        if (!nextPages.length) {
+          failedSources.current.add(sourceId);
+          const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id));
+          if (next) {
+            setActiveSource(next.id);
+            setChapterIndex(0);
+            setPages([]);
+            setPageNote("");
+            return;
+          }
+        }
         setPages(nextPages);
-        setFailedPages({});
+        setPageIndex(0);
         setPageNote(nextPages.length ? "" : "Pages could not be loaded for this chapter.");
       })
       .catch(() => {
         if (cancelled) return;
+        failedSources.current.add(sourceId);
+        const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id));
+        if (next) {
+          setActiveSource(next.id);
+          setChapterIndex(0);
+          setPages([]);
+          setPageNote("");
+          return;
+        }
         setPages([]);
         setPageNote("Pages could not be loaded. The chapter list is still available.");
       })
@@ -135,16 +186,20 @@ function MangaId() {
     return () => {
       cancelled = true;
     };
-  }, [manga, chapter, chapterIndex]);
+  }, [manga, sources, chapter, currentSource?.id, sourcesReady]);
 
   useEffect(() => {
-    if (skipChapterScroll.current) {
-      skipChapterScroll.current = false;
-      return undefined;
-    }
-    document.getElementById("reader-strip")?.scrollIntoView({ block: "start" });
+    setPageFailed(false);
+  }, [pages, pageIndex]);
+
+  useEffect(() => {
+    const upcoming = pages[pageIndex + 1];
+    if (!upcoming) return undefined;
+    const img = new Image();
+    img.referrerPolicy = "no-referrer";
+    img.src = upcoming;
     return undefined;
-  }, [chapterIndex, activeSource]);
+  }, [pages, pageIndex]);
 
   if (loading) {
     return <CatalogSkeleton variant="watch" label="Opening the reader" />;
@@ -164,65 +219,53 @@ function MangaId() {
   }
 
   const pageCount = pages.length;
+  const railItems = chapters.length ? chapters : (manga.chapters || []).filter((entry) => !String(entry.id || "").startsWith("mangapill:"));
 
   return (
     <div className="watch-page">
-      <div className="watch-stage">
-        {manga.stale ? (
-          <div className="status-banner" role="status">
-            <p>Showing a saved copy while sources catch up.</p>
-            <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
-          </div>
-        ) : null}
-        <div className="source-row" role="group" aria-label="Reading sources">
-          {sources.map((source) => (
-            <button
-              key={source.id}
-              type="button"
-              className={source.id === currentSource?.id ? "is-active" : ""}
-              onClick={() => {
-                setActiveSource(source.id);
-                setChapterIndex(0);
-              }}
-            >
-              {source.label}
-            </button>
-          ))}
-        </div>
-        {chapters.length > 0 ? (
-          <div className="reader-toolbar">
-            <label htmlFor="chapter-select">Chapter</label>
-            <select
-              id="chapter-select"
-              value={chapters[chapterIndex] ? chapterIndex : 0}
-              onChange={(event) => setChapterIndex(Number(event.target.value))}
-            >
-              {chapters.map((entry, index) => (
-                <option key={`${entry.id || entry.number}-${index}`} value={index}>
-                  {entry.title}
-                </option>
+      <div className="watch-layout">
+        <div className="watch-stage">
+          {manga.stale ? (
+            <div className="status-banner" role="status">
+              <p>Showing a saved copy while sources catch up.</p>
+              <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+            </div>
+          ) : null}
+          {sources.length > 0 ? (
+            <div className="source-row" role="group" aria-label="Reading sources">
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  className={source.id === currentSource?.id ? "is-active" : ""}
+                  onClick={() => {
+                    failedSources.current.delete(source.id);
+                    setActiveSource(source.id);
+                    setChapterIndex(0);
+                    setPageIndex(0);
+                  }}
+                >
+                  {source.label}
+                </button>
               ))}
-            </select>
-          </div>
-        ) : (
-          <p className="catalog-note">No chapter list is available for this title.</p>
-        )}
+            </div>
+          ) : null}
           <div className="reader-toolbar">
             <button
               type="button"
-              disabled={chapterIndex === 0}
-              onClick={() => setChapterIndex((value) => Math.max(0, value - 1))}
+              disabled={pageIndex === 0 || pageCount === 0}
+              onClick={() => setPageIndex((value) => Math.max(0, value - 1))}
             >
-              Previous chapter
+              Prev
             </button>
             <button
               type="button"
-              disabled={!chapters.length || chapterIndex >= chapters.length - 1}
-              onClick={() => setChapterIndex((value) => Math.min(chapters.length - 1, value + 1))}
+              disabled={pageCount === 0 || pageIndex >= pageCount - 1}
+              onClick={() => setPageIndex((value) => Math.min(pageCount - 1, value + 1))}
             >
-              Next chapter
+              Next
             </button>
-            <span>{pageCount ? `${pageCount} pages · scroll` : "No pages"}</span>
+            <span>{pageCount ? `Page ${pageIndex + 1} of ${pageCount}` : "No pages"}</span>
           </div>
           {pageNote ? <p className="catalog-note">{pageNote}</p> : null}
           {pagesLoading ? (
@@ -230,57 +273,46 @@ function MangaId() {
               <LoaderMark />
               <p>Loading pages</p>
             </div>
-          ) : pageCount > 0 ? (
-            <div className="reader-strip" id="reader-strip">
-              {pages.map((src, index) => (
-                failedPages[index] ? (
-                  <div key={`${src}:broken`} className="reader-page reader-page--broken" role="alert">
-                    <p>Page {index + 1} did not load.</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFailedPages((current) => {
-                          const next = { ...current };
-                          delete next[index];
-                          return next;
-                        });
-                        setPageTries((current) => ({ ...current, [index]: (current[index] || 0) + 1 }));
-                      }}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                ) : (
-                  <img
-                    key={`${src}:${pageTries[index] || 0}`}
-                    className="reader-page"
-                    src={src}
-                    alt={`${manga.title} page ${index + 1}`}
-                    referrerPolicy="no-referrer"
-                    decoding="async"
-                    loading={index < 2 ? "eager" : "lazy"}
-                    onError={() => setFailedPages((current) => ({ ...current, [index]: true }))}
-                  />
-                )
-              ))}
-              <div className="reader-toolbar reader-toolbar--end">
-                <button
-                  type="button"
-                  disabled={chapterIndex === 0}
-                  onClick={() => setChapterIndex((value) => Math.max(0, value - 1))}
-                >
-                  Previous chapter
+          ) : pageFailed ? (
+            <div className="reader-fallback" role="alert">
+              <p>This page did not load.</p>
+              <div className="reader-toolbar">
+                <button type="button" onClick={() => { setPageFailed(false); setPageTry((value) => value + 1); }}>
+                  Retry page
                 </button>
                 <button
                   type="button"
-                  disabled={chapterIndex >= chapters.length - 1}
-                  onClick={() => setChapterIndex((value) => Math.min(chapters.length - 1, value + 1))}
+                  disabled={pageIndex >= pageCount - 1}
+                  onClick={() => setPageIndex((value) => Math.min(pageCount - 1, value + 1))}
                 >
-                  Next chapter
+                  Next page
                 </button>
               </div>
             </div>
+          ) : pages[pageIndex] ? (
+            <img
+              key={`${pages[pageIndex]}:${pageTry}`}
+              className="reader-page"
+              src={pages[pageIndex]}
+              alt={`${manga.title} page ${pageIndex + 1}`}
+              referrerPolicy="no-referrer"
+              decoding="async"
+              onError={() => setPageFailed(true)}
+            />
           ) : null}
+        </div>
+        <WatchRail
+          label="Chapters"
+          query={chapterQuery}
+          onQuery={setChapterQuery}
+          items={railItems}
+          selectedIndex={safeIndex}
+          onSelect={(index) => {
+            setChapterIndex(index);
+            setPageIndex(0);
+          }}
+          emptyNote="No chapter list is available for this title."
+        />
       </div>
       <section className="watch-meta">
         <img

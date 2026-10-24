@@ -5,6 +5,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
 import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
+import WatchRail from "./WatchRail";
 import {
   getAnimeDetail,
   loadEpisodeServers,
@@ -14,6 +15,13 @@ import {
   sourceLabel,
 } from "../API/catalog";
 
+function malAnimeEmbed(malId, episodeNumber) {
+  const id = Number(malId);
+  const episode = Number(episodeNumber);
+  if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(episode) || episode <= 0) return "";
+  return `https://vidsrc.me/embed/anime/mal/${id}/${episode}`;
+}
+
 function Anime() {
   const { id } = useParams();
   const email = localStorage.getItem("email");
@@ -21,6 +29,7 @@ function Anime() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedEpisode, setSelectedEpisode] = useState(0);
+  const [episodeQuery, setEpisodeQuery] = useState("");
   const [servers, setServers] = useState([]);
   const [activeServer, setActiveServer] = useState("");
   const [embedUrl, setEmbedUrl] = useState("");
@@ -34,6 +43,7 @@ function Anime() {
     setError("");
     setMovie(null);
     setSelectedEpisode(0);
+    setEpisodeQuery("");
     setServers([]);
     setActiveServer("");
     setEmbedUrl("");
@@ -54,13 +64,24 @@ function Anime() {
     };
   }, [id, retryToken]);
 
+  const episodes = movie?.episodes || [];
+  const episode = episodes[selectedEpisode] || null;
+  const malEmbed = malAnimeEmbed(movie?.malId, episode?.number || (episodes.length ? 0 : 1));
+
   useEffect(() => {
-    const episode = movie?.episodes?.[selectedEpisode];
+    if (!movie) return undefined;
     if (!episode?.episodeId) {
       setServers([]);
-      setActiveServer("");
-      setEmbedUrl("");
-      setEmbedNote("");
+      setBlockedServers([]);
+      if (malEmbed) {
+        setActiveServer("mal-vidsrc");
+        setEmbedUrl(malEmbed);
+        setEmbedNote("");
+      } else {
+        setActiveServer("");
+        setEmbedUrl("");
+        setEmbedNote("");
+      }
       return undefined;
     }
     let cancelled = false;
@@ -85,20 +106,32 @@ function Anime() {
           skipped.push(server.id);
         }
         setBlockedServers(skipped);
+        if (malEmbed) {
+          setActiveServer("mal-vidsrc");
+          setEmbedUrl(malEmbed);
+          setEmbedNote("");
+          return;
+        }
         setActiveServer("");
         setEmbedUrl("");
-        setEmbedNote(list.length ? "These hosts block embedded playback." : "This episode has no stream sources.");
+        setEmbedNote("");
       })
       .catch(() => {
         if (cancelled) return;
         setServers([]);
+        if (malEmbed) {
+          setActiveServer("mal-vidsrc");
+          setEmbedUrl(malEmbed);
+          setEmbedNote("");
+          return;
+        }
         setEmbedUrl("");
-        setEmbedNote("The player could not be loaded.");
+        setEmbedNote("");
       });
     return () => {
       cancelled = true;
     };
-  }, [movie, selectedEpisode]);
+  }, [movie, selectedEpisode, episode?.episodeId, malEmbed]);
 
   function chooseServer(server) {
     setActiveServer(server.id);
@@ -106,13 +139,45 @@ function Anime() {
     setEmbedNote("Loading player");
     resolveEpisodeServer(server)
       .then((url) => {
-        setEmbedUrl(url || "");
-        setEmbedNote(url ? "" : "This source has no embeddable player.");
+        if (url) {
+          setEmbedUrl(url);
+          setEmbedNote("");
+          return;
+        }
+        setBlockedServers((current) => (current.includes(server.id) ? current : [...current, server.id]));
+        if (malEmbed) {
+          setActiveServer("mal-vidsrc");
+          setEmbedUrl(malEmbed);
+          setEmbedNote("");
+          return;
+        }
+        setEmbedUrl("");
+        setEmbedNote("");
       })
       .catch(() => {
+        if (malEmbed) {
+          setActiveServer("mal-vidsrc");
+          setEmbedUrl(malEmbed);
+          setEmbedNote("");
+          return;
+        }
         setEmbedUrl("");
-        setEmbedNote("The player could not be loaded.");
+        setEmbedNote("");
       });
+  }
+
+  function playMal() {
+    if (!malEmbed) return;
+    setActiveServer("mal-vidsrc");
+    setEmbedUrl(malEmbed);
+    setEmbedNote("");
+  }
+
+  function playTrailer() {
+    if (!movie?.preview?.embed) return;
+    setActiveServer("trailer");
+    setEmbedUrl(movie.preview.embed);
+    setEmbedNote("");
   }
 
   if (loading) {
@@ -132,8 +197,6 @@ function Anime() {
     );
   }
 
-  const episodes = movie.episodes || [];
-  const episode = episodes[selectedEpisode] || null;
   const seenSites = new Set();
   const watchLinks = (movie.watchLinks || []).filter((link) => {
     const key = String(link.label || link.url || "").trim().toLowerCase();
@@ -141,107 +204,108 @@ function Anime() {
     seenSites.add(key);
     return true;
   });
-  const preview = !embedUrl && !episode?.episodeId && movie.preview?.embed ? movie.preview : null;
+  const loadingPlayer = embedNote === "Loading player";
+  const hasOffers = Boolean(servers.length || malEmbed || movie.preview?.embed || watchLinks.length || episode?.url);
+
+  const sourceButtons = (
+    <>
+      {servers.map((server) => (
+        <button
+          key={server.id || server.label}
+          type="button"
+          className={[
+            server.id === activeServer ? "is-active" : "",
+            blockedServers.includes(server.id) ? "is-blocked" : "",
+          ].filter(Boolean).join(" ")}
+          onClick={() => chooseServer(server)}
+        >
+          {server.label}
+        </button>
+      ))}
+      {malEmbed ? (
+        <button type="button" className={activeServer === "mal-vidsrc" ? "is-active" : ""} onClick={playMal}>
+          VidSrc
+        </button>
+      ) : null}
+      {movie.preview?.embed ? (
+        <button type="button" className={activeServer === "trailer" ? "is-active" : ""} onClick={playTrailer}>
+          {movie.preview.label || "Trailer"}
+        </button>
+      ) : null}
+      {watchLinks.map((link) => (
+        <a key={link.url} className="source-link" href={link.url} target="_blank" rel="noopener noreferrer">
+          {link.label}
+        </a>
+      ))}
+      {!embedUrl && episode?.url && !watchLinks.some((link) => link.url === episode.url) ? (
+        <a className="source-link" href={episode.url} target="_blank" rel="noopener noreferrer">
+          Watch {episode.site ? `on ${episode.site}` : "episode"}
+        </a>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="watch-page">
       {movie.banner ? <img className="watch-banner" src={movie.banner} alt="" /> : null}
-      <div className="watch-stage">
-        {embedUrl ? (
-          <div className="stream-frame">
-            <iframe
-              title={`${movie.title} ${episode?.title || "player"}`}
-              src={embedUrl}
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowFullScreen
-            />
-          </div>
-        ) : (
-          <div className={`stream-frame stream-frame--empty${embedNote === "Loading player" ? " is-loading" : ""}`}>
-            {embedNote === "Loading player" ? (
-              <div className="player-loader">
-                <LoaderMark />
-                <p>Loading player</p>
-              </div>
-            ) : (
-              <p>{embedNote || "Choose a stream source"}</p>
-            )}
-          </div>
-        )}
-        {movie.stale ? (
-          <div className="status-banner" role="status">
-            <p>Showing a saved copy while sources catch up.</p>
-            <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
-          </div>
-        ) : null}
-        {servers.length > 0 ? (
-          <div className="source-row" role="group" aria-label="Stream sources">
-            {servers.map((server) => (
-              <button
-                key={server.id || server.label}
-                type="button"
-                className={[
-                  server.id === activeServer ? "is-active" : "",
-                  blockedServers.includes(server.id) ? "is-blocked" : "",
-                ].filter(Boolean).join(" ")}
-                onClick={() => chooseServer(server)}
-              >
-                {server.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {blockedServers.length > 0 && embedUrl ? (
-          <p className="catalog-note">Some hosts block embedded players. The highlighted source is the one that can play here.</p>
-        ) : null}
-        {watchLinks.length > 0 ? (
-          <div className="source-row" aria-label="More stream links">
-            {watchLinks.map((link) => (
-              <a key={link.url} className="source-link" href={link.url} target="_blank" rel="noopener noreferrer">
-                {link.label}
-              </a>
-            ))}
-          </div>
-        ) : null}
-        {episodes.length > 0 ? (
-          <div className="reader-toolbar">
-            <label htmlFor="episode-select">Episode</label>
-            <select
-              id="episode-select"
-              value={selectedEpisode}
-              onChange={(event) => setSelectedEpisode(Number(event.target.value))}
-            >
-              {episodes.map((entry, index) => (
-                <option key={`${entry.number}-${index}`} value={index}>
-                  {entry.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <p className="catalog-note">No episode list is available for this title.</p>
-        )}
-        {embedUrl && embedNote ? <p className="catalog-note">{embedNote}</p> : null}
-        {preview ? (
-          <>
-            <p className="catalog-note">{preview.label}</p>
+      <div className="watch-layout">
+        <div className="watch-stage">
+          {embedUrl ? (
             <div className="stream-frame">
               <iframe
-                title={preview.label}
-                src={preview.embed}
+                key={embedUrl}
+                title={`${movie.title} ${episode?.title || "player"}`}
+                src={embedUrl}
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 allowFullScreen
+                referrerPolicy="origin"
               />
             </div>
-          </>
-        ) : null}
-        {!embedUrl && episode?.url && embedNote !== "Loading player" ? (
-          <p className="reader-toolbar">
-            <a className="watch-link" href={episode.url} target="_blank" rel="noopener noreferrer">
-              Watch {episode.site ? `on ${episode.site}` : "episode"}
-            </a>
-          </p>
-        ) : null}
+          ) : (
+            <div className={`stream-frame stream-frame--empty${loadingPlayer ? " is-loading" : ""}`}>
+              {loadingPlayer ? (
+                <div className="player-loader">
+                  <LoaderMark />
+                  <p>Loading player</p>
+                </div>
+              ) : (
+                <div className="empty-player">
+                  {hasOffers ? (
+                    <>
+                      <p>Choose a source to start this episode.</p>
+                      <div className="source-row" role="group" aria-label="Stream sources">{sourceButtons}</div>
+                    </>
+                  ) : (
+                    <p>No playable source is listed for this episode.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {movie.stale ? (
+            <div className="status-banner" role="status">
+              <p>Showing a saved copy while sources catch up.</p>
+              <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+            </div>
+          ) : null}
+          {embedUrl ? (
+            <div className="source-row" role="group" aria-label="Stream sources">
+              {sourceButtons}
+            </div>
+          ) : null}
+          {blockedServers.length > 0 && embedUrl ? (
+            <p className="catalog-note">Some hosts block embedded players. The highlighted source is the one that can play here.</p>
+          ) : null}
+        </div>
+        <WatchRail
+          label="Episodes"
+          query={episodeQuery}
+          onQuery={setEpisodeQuery}
+          items={episodes}
+          selectedIndex={selectedEpisode}
+          onSelect={setSelectedEpisode}
+          emptyNote="No episode list is available for this title."
+        />
       </div>
       <section className="watch-meta">
         <img

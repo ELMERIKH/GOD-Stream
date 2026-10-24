@@ -1,8 +1,8 @@
 // Live sources probed from this environment:
 // AniList, Kitsu, and MangaDex: titles, covers, and (MangaDex) chapter pages. Browser CORS.
-// Consumet https://consumet-api-m8mf.onrender.com : MangaPill search/info/read return
-// chapter image URLs (JPEG 200). Gogoanime search is an empty list. Zoro and AnimePahe
-// return HTTP 500. Used for manga pages and a fail-fast episode lookup, never the grid.
+// Consumet https://consumet-api-m8mf.onrender.com : Gogoanime search is an empty list.
+// Zoro and AnimePahe return HTTP 500. MangaPill page CDNs answer 403, so those
+// image buttons are not offered. Used only as a chapter lookup, never the grid.
 // Shikimori https://shikimori.io/api : CORS *, YouTube trailer/opening embeds.
 // Sanka https://www.sankavollerei.web.id : CORS *. Episode servers become player buttons.
 // Komikstation chapter images and Kiryuu covers come from the same host.
@@ -22,7 +22,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v7";
+const HTTP_KEY = "streamgod.http.v8";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -293,35 +293,101 @@ async function fetchJson(url, options = {}) {
   }
 }
 
+// If a catalog is still pending after this, start the next one. The earliest list that
+// has items still wins, and a source that answers immediately never starts the next.
+const LIST_HEDGE_MS = 650;
+
 async function firstList(calls) {
+  const slots = calls.map((call) => ({ call, started: false, promise: null }));
+  const start = (index) => {
+    const slot = slots[index];
+    if (!slot || slot.started) return slot?.promise;
+    slot.started = true;
+    slot.promise = Promise.resolve().then(() => slot.call());
+    slot.promise.catch(() => {});
+    return slot.promise;
+  };
+
   let sawSuccess = false;
   let lastError = null;
-  for (const call of calls) {
+
+  for (let index = 0; index < slots.length; index += 1) {
+    const promise = start(index);
+    let timer;
+    const hedge = index + 1 < slots.length
+      ? new Promise((resolve) => {
+          timer = setTimeout(() => {
+            start(index + 1);
+            resolve("hedge");
+          }, LIST_HEDGE_MS);
+        })
+      : null;
     try {
-      const result = await call();
-      sawSuccess = true;
-      if (result?.items?.length) {
-        remember(result.items);
-        return result;
+      const outcome = await Promise.race([
+        promise.then((value) => ({ kind: "value", value })).catch((error) => ({ kind: "error", error })),
+        ...(hedge ? [hedge] : []),
+      ]);
+      if (outcome === "hedge") {
+        try {
+          const value = await promise;
+          sawSuccess = true;
+          if (value?.items?.length) {
+            remember(value.items);
+            return value;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+        continue;
       }
-    } catch (error) {
-      lastError = error;
+      if (outcome.kind === "error") {
+        lastError = outcome.error;
+        continue;
+      }
+      sawSuccess = true;
+      if (outcome.value?.items?.length) {
+        remember(outcome.value.items);
+        return outcome.value;
+      }
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
+
   if (!sawSuccess && lastError) throw lastError;
   return { items: [], hasNext: false, source: "" };
 }
 
+function titleBundle(display, extras) {
+  const title = String(display || "").trim() || "Untitled";
+  const seen = new Set([compactTitle(title)]);
+  const altTitles = [];
+  (extras || []).forEach((name) => {
+    const value = String(name || "").trim();
+    const key = compactTitle(value);
+    if (!value || !key || seen.has(key)) return;
+    seen.add(key);
+    altTitles.push(value);
+  });
+  return { title, altTitles };
+}
+
 function anilistTitle(media) {
-  return media?.title?.english || media?.title?.romaji || "Untitled";
+  return media?.title?.english || media?.title?.romaji || media?.title?.native || "Untitled";
 }
 
 function anilistItem(media, sourceType) {
   const nextEpisode = media?.nextAiringEpisode?.episode;
+  const names = titleBundle(anilistTitle(media), [
+    media?.title?.romaji,
+    media?.title?.english,
+    media?.title?.native,
+  ]);
   return {
     id: `anilist:${media.id}`,
     source: "anilist",
-    title: anilistTitle(media),
+    title: names.title,
+    altTitles: names.altTitles,
     image: media?.coverImage?.extraLarge || media?.coverImage?.large || "",
     rating: media?.averageScore ?? null,
     description: plainText(media?.description),
@@ -350,7 +416,7 @@ async function anilistPage({ type, page, sort, status, search }) {
       pageInfo { hasNextPage }
       media(${filters.join(", ")}) {
         id
-        title { romaji english }
+        title { romaji english native }
         coverImage { large extraLarge }
         averageScore
         description(asHtml: false)
@@ -384,10 +450,16 @@ function kitsuImage(image) {
 
 function kitsuItem(resource, kind) {
   const attributes = resource.attributes || {};
+  const titles = attributes.titles || {};
+  const names = titleBundle(
+    attributes.canonicalTitle || titles.en || titles.en_jp || attributes.slug,
+    [titles.en, titles.en_jp, titles.ja_jp, attributes.canonicalTitle]
+  );
   return {
     id: `kitsu:${resource.id}`,
     source: "kitsu",
-    title: attributes.canonicalTitle || attributes.titles?.en || attributes.slug || "Untitled",
+    title: names.title,
+    altTitles: names.altTitles,
     image: kitsuImage(attributes.posterImage),
     rating: attributes.averageRating ? Math.round(Number(attributes.averageRating)) : null,
     description: plainText(attributes.synopsis || attributes.description),
@@ -426,7 +498,7 @@ async function anilistDetail(rawId, type) {
   const query = `query ($id: Int, $type: MediaType) {
     Media(id: $id, type: $type) {
       id
-      title { romaji english }
+      title { romaji english native }
       description(asHtml: false)
       coverImage { extraLarge large }
       averageScore
@@ -956,25 +1028,46 @@ async function attachPreview(detail) {
   }
 }
 
+function uniqueTitles(detail) {
+  if (!String(detail?.title || "").trim()) return [];
+  const bundled = titleBundle(detail.title, detail.altTitles);
+  return [bundled.title, ...bundled.altTitles];
+}
+
+function withSankaEpisodes(detail, playable) {
+  return {
+    ...detail,
+    episodes: playable.episodes,
+    malId: detail.malId || null,
+    notice: "Playback comes from Sanka. Poster and description stay with the catalog source.",
+  };
+}
+
 async function attachPlayableEpisodes(detail) {
   if (!detail?.title || detail.source === "sanka") return detail;
   if ((detail.episodes || []).some((episode) => episode.episodeId)) return detail;
-  try {
-    const found = await sankaSearch(detail.title);
-    const words = detail.title.trim().split(/\s+/).filter(Boolean);
-    const hit = found.items.find((item) => playableTitle(detail.title, item.title))
-      || (words.length >= 2 ? found.items[0] : null);
-    if (!hit) return detail;
-    const playable = await sankaAnimeDetail(parseCatalogId(hit.id).raw);
-    if (!playable?.episodes?.length) return detail;
-    return {
-      ...detail,
-      episodes: playable.episodes,
-      notice: "Playback comes from Sanka. Poster and description stay with the catalog source.",
-    };
-  } catch {
-    return detail;
+  const queries = uniqueTitles(detail);
+  let loose = null;
+  for (const query of queries) {
+    try {
+      const found = await sankaSearch(query);
+      const exact = found.items.find((item) => queries.some((name) => playableTitle(name, item.title)));
+      const words = String(query || "").trim().split(/\s+/).filter(Boolean);
+      if (!exact) {
+        if (!loose && words.length >= 2 && found.items[0]) {
+          const candidate = await sankaAnimeDetail(parseCatalogId(found.items[0].id).raw);
+          if (candidate?.episodes?.length) loose = candidate;
+        }
+        continue;
+      }
+      const playable = await sankaAnimeDetail(parseCatalogId(exact.id).raw);
+      if (playable?.episodes?.length) return withSankaEpisodes(detail, playable);
+    } catch {
+      // The next spelling can still match Sanka.
+    }
   }
+  if (loose?.episodes?.length) return withSankaEpisodes(detail, loose);
+  return detail;
 }
 
 async function kiryuuList(page) {
@@ -1187,10 +1280,15 @@ function nozuTitle(title) {
 }
 
 function nozuItem(row, kind) {
+  const title = row.title;
+  const names = title && typeof title === "object"
+    ? titleBundle(nozuTitle(title), [title.romaji, title.english, title.native])
+    : titleBundle(nozuTitle(title), []);
   return {
     id: `nozu:${row.slug}`,
     source: "nozu",
-    title: nozuTitle(row.title),
+    title: names.title,
+    altTitles: names.altTitles,
     image: row.cover_image || "",
     banner: row.banner_image || "",
     rating: row.average_score ?? null,
@@ -1313,12 +1411,20 @@ async function enrichAnime(detail) {
     attachPreview(detail),
     attachPlayableEpisodes(detail),
   ]);
+  const episodes = playable.episodes || previewed.episodes || [];
+  const malId = previewed.malId || playable.malId || null;
+  const hasSanka = episodes.some((episode) => episode.episodeId);
+  const notice = hasSanka
+    ? (playable.notice || previewed.notice || "")
+    : (malId
+      ? "No Sanka stream is listed. VidSrc can play the selected episode."
+      : (playable.notice || previewed.notice || ""));
   return {
     ...previewed,
-    episodes: playable.episodes || previewed.episodes || [],
-    notice: playable.notice || previewed.notice || "",
+    episodes,
+    notice,
     preview: previewed.preview || playable.preview || null,
-    malId: previewed.malId || playable.malId || null,
+    malId,
     watchLinks: previewed.watchLinks || playable.watchLinks || [],
   };
 }
