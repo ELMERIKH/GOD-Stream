@@ -22,7 +22,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v4";
+const HTTP_KEY = "streamgod.http.v7";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -911,7 +911,9 @@ async function attachPlayableEpisodes(detail) {
   if ((detail.episodes || []).some((episode) => episode.episodeId)) return detail;
   try {
     const found = await sankaSearch(detail.title);
-    const hit = found.items.find((item) => playableTitle(detail.title, item.title));
+    const words = detail.title.trim().split(/\s+/).filter(Boolean);
+    const hit = found.items.find((item) => playableTitle(detail.title, item.title))
+      || (words.length >= 2 ? found.items[0] : null);
     if (!hit) return detail;
     const playable = await sankaAnimeDetail(parseCatalogId(hit.id).raw);
     if (!playable?.episodes?.length) return detail;
@@ -1121,19 +1123,9 @@ async function mangadexReader(title) {
 export function loadMangaSources(title) {
   const key = `manga-sources:${compactTitle(title)}`;
   return cached(key, async () => {
-    const [dex, pill] = await Promise.allSettled([
-      mangadexReader(title),
-      loadMangapillChapters(title),
-    ]);
+    const dex = await Promise.allSettled([mangadexReader(title)]);
     const sources = [];
-    if (dex.status === "fulfilled" && dex.value?.chapters?.length) sources.push(dex.value);
-    if (pill.status === "fulfilled" && Array.isArray(pill.value) && pill.value.length) {
-      sources.push({
-        id: "mangapill",
-        label: "MangaPill",
-        chapters: pill.value.slice(-80).reverse(),
-      });
-    }
+    if (dex[0].status === "fulfilled" && dex[0].value?.chapters?.length) sources.push(dex[0].value);
     return sources;
   }, 10 * 60 * 1000);
 }
@@ -1177,18 +1169,23 @@ async function nozuAnimeDetail(slug) {
   const item = nozuItem(data, "anime");
   const links = [];
   const seen = new Set();
+  const seenSites = new Set();
   (data.external_links || []).forEach((link) => {
     if (link.type && link.type !== "STREAMING") return;
     const url = String(link.url || "").replace(/^http:\/\//i, "https://");
-    if (!url || seen.has(url)) return;
+    const site = String(link.site || "Stream").trim();
+    if (!url || seen.has(url) || seenSites.has(site.toLowerCase())) return;
     seen.add(url);
-    links.push({ label: link.site || "Stream", url });
+    seenSites.add(site.toLowerCase());
+    links.push({ label: site, url });
   });
-  (data.streaming_episodes || []).slice(0, 8).forEach((episode) => {
+  (data.streaming_episodes || []).forEach((episode) => {
     const url = String(episode.url || "").replace(/^http:\/\//i, "https://");
-    if (!url || seen.has(url)) return;
+    const site = String(episode.site || "").trim();
+    if (!url || seen.has(url) || (site && seenSites.has(site.toLowerCase()))) return;
     seen.add(url);
-    links.push({ label: episode.site || episode.title || "Episode", url });
+    if (site) seenSites.add(site.toLowerCase());
+    links.push({ label: site || episode.title || "Episode", url });
   });
   const trailer = data.trailer || {};
   const trailerId = String(trailer.site || "youtube").toLowerCase() === "youtube"
