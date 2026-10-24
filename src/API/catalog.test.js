@@ -11,6 +11,7 @@ import {
   mergeSankaChapterPages,
   parseSankaChapterPage,
   parseWeebPageUrls,
+  comicPageUrls,
   readerPageUrls,
   searchManga,
   sankaChapterPageInfo,
@@ -978,11 +979,28 @@ test("the default manga reader is the English source, not Komikindo", async () =
   expect(sources[0].chapters.map((chapter) => chapter.number)).toEqual(["135", "1"]);
   expect(sources[0].notice).toMatch(/Chapter 136 is not on Weeb Central/);
   expect(sources[0].notice).toMatch(/Showing chapter 135/);
-  expect(sources.some((source) => source.id === "sanka")).toBe(false);
-  expect(sources[1].id).toBe("mangadex");
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral", "mangadex", "bacakomik", "komikindo"]);
+  expect(sources[2].label).toBe("BacaKomik · Indonesian");
+  expect(sources[3].label).toBe("Komikindo · Indonesian");
+  expect(sources.some((source) => source.id === "anilist")).toBe(false);
   const urls = global.fetch.mock.calls.map((call) => String(call[0]));
-  expect(urls.some((href) => href.includes("/comic/komikindo/"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/komikindo/search/"))).toBe(true);
+  expect(urls.some((href) => href.includes("/comic/bacakomik/search/"))).toBe(true);
   expect(urls.some((href) => href.includes("adult=False"))).toBe(true);
+});
+
+test("Indonesian comic page lists drop banner images", () => {
+  expect(comicPageUrls([
+    "https://blogger.googleusercontent.com/img/banner.gif",
+    "https://komikindo.ch/wp-content/uploads/2026/10/masterimage-series/cover.jpg",
+    "https://natsu.one/wp-content/uploads/2025/09/cover.jpg",
+    "https://cdn.natsu.id/K/kagurabachi/135/1.webp",
+    "https://img.klikcdn.com/data-manga/manga_a/001.jpg",
+    "https://mangapill.com/a.jpg",
+  ])).toEqual([
+    "https://cdn.natsu.id/K/kagurabachi/135/1.webp",
+    "https://img.klikcdn.com/data-manga/manga_a/001.jpg",
+  ]);
 });
 
 test("Weeb Central page lists drop ad images", () => {

@@ -13,7 +13,13 @@
 // Sanka https://www.sankavollerei.web.id : CORS *. Episode servers become player buttons.
 // Komikstation chapter images and Kiryuu covers come from the same host.
 // Weeb Central https://weebcentral.com : English chapter lists and page images.
-// Komikindo and BacaKomik pages are Indonesian, so they are not the reader.
+// Sanka comic routes that returned chapter lists and HTTP 200 page images:
+// BacaKomik, Komikindo, Komikstation, and MangaKita. Those pages are Indonesian,
+// so they are extra pills and never the default reader.
+// Rejected after a live probe: Komiku, Maid, SoulScans, Meganei, Komikcast,
+// Bacaman, Softkomik, Westmanga, Cosmic Scans, and Komikuindo answered 403 or 500.
+// Kiryuu's chapter route answered 500. Shinigami lists chapters, then
+// assets.shngm.id images answer 403. Mangasusuku is adult and is not called.
 // Nozu https://nozu.me/api/v1 : CORS *. Covers, banners, and official stream links.
 // Not wired: AnimePahe (the public search answers with an anti-bot HTML page, and the
 // published API says it is waiting on a Cloudflare UAM fix — no bypass is included).
@@ -30,7 +36,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v15";
+const HTTP_KEY = "streamgod.http.v16";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -1079,6 +1085,16 @@ function decodeHtml(value) {
   return plainText(String(value || "").replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code))));
 }
 
+export function comicPageUrls(urls) {
+  return readerPageUrls(urls).filter((url) => {
+    if (/\.gif(?:$|\?)/i.test(url)) return false;
+    if (/googleusercontent|blogspot/i.test(url)) return false;
+    if (/masterimage-series/i.test(url)) return false;
+    if (/\/wp-content\/uploads\//i.test(url)) return false;
+    return true;
+  });
+}
+
 export function readerPageUrls(urls) {
   return (urls || [])
     .map((item) => (typeof item === "string" ? item : item?.url || item?.img || ""))
@@ -1188,7 +1204,7 @@ export function getMangaPages(chapterId) {
         { timeout: 8000 }
       );
       const images = payload?.data?.images || payload?.images || [];
-      return readerPageUrls(images.map((item) => (typeof item === "string" ? item : item?.url)));
+      return comicPageUrls(images.map((item) => (typeof item === "string" ? item : item?.url)));
     }, 8 * 60 * 1000);
   }
   if (String(chapterId).startsWith("komikstation:")) {
@@ -1197,7 +1213,7 @@ export function getMangaPages(chapterId) {
       const payload = await fetchJson(`${SANKA}/comic/komikstation/chapter/${encodeURIComponent(slug)}`, {
         timeout: 8000,
       });
-      return readerPageUrls(Array.isArray(payload?.images) ? payload.images : []);
+      return comicPageUrls(Array.isArray(payload?.images) ? payload.images : []);
     }, 8 * 60 * 1000);
   }
   if (String(chapterId).startsWith("mangapill:")) {
@@ -1812,44 +1828,110 @@ async function mangadexReader(title) {
   };
 }
 
-// Komikstation titles from Sanka are Indonesian ("Martial Peak Bahasa Indonesia").
-// kiryuu.io is lang=id and has no /en/ feed. A lang=en query does not change that.
-// English manhwa pages come from Weeb Central when that series has page images.
-async function komikstationReader(title) {
-  const found = await kiryuuSearch(title);
-  const hit = found.items.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
-  if (!hit) return null;
-  const readable = await kiryuuDetail(parseCatalogId(hit.id).raw);
-  const chapters = (readable?.chapters || []).filter(
-    (chapter) => chapter.id && chapter.pages && !String(chapter.id).startsWith("mangapill:")
+// Indonesian Sanka comics. Each one is its own pill. English readers stay first.
+// Komikstation search answers 500, so that source is opened by the title slug
+// and kept only when the manga title matches. Kiryuu search ignores the query.
+const COMIC_READERS = [
+  { id: "bacakomik", label: "BacaKomik · Indonesian", shortName: "BacaKomik", detail: "detail" },
+  { id: "komikindo", label: "Komikindo · Indonesian", shortName: "Komikindo", detail: "detail" },
+  { id: "komikstation", label: "Komikstation · Indonesian", shortName: "Komikstation", detail: "manga" },
+  { id: "mangakita", label: "MangaKita · Indonesian", shortName: "MangaKita", detail: "detail" },
+];
+
+function comicSearchRows(payload) {
+  if (Array.isArray(payload?.komikList)) return payload.komikList;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.seriesList)) return payload.seriesList;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
+function comicChapterRows(payload) {
+  const boxes = [payload?.detail, payload?.data, payload?.details, payload];
+  for (const box of boxes) {
+    if (Array.isArray(box?.chapters) && box.chapters.length) return box.chapters;
+  }
+  return [];
+}
+
+function comicTitleSlug(title) {
+  return String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function comicChapterId(source, seriesSlug, row) {
+  const number = readSankaChapterNumber(row);
+  let slug = String(row?.slug || row?.chapter_id || "");
+  if (source.id === "mangakita" && seriesSlug && number) slug = `${seriesSlug}-chapter-${number}`;
+  if (!slug || slug.includes("mangapill:")) return "";
+  if (source.id === "komikstation") return `komikstation:${slug}`;
+  return `sanka:${source.id}:${slug}`;
+}
+
+async function comicSearch(sourceId, title) {
+  try {
+    const payload = await fetchJson(`${SANKA}/comic/${sourceId}/search/${encodeURIComponent(title)}`, { timeout: 8000 });
+    const rows = comicSearchRows(payload)
+      .map((row) => ({ title: cleanComicTitle(row.title), slug: row.slug }))
+      .filter((row) => row.slug && row.title);
+    return bestTitleMatch(title, rows, (row) => row.title);
+  } catch {
+    return null;
+  }
+}
+
+async function loadComicReader(source, title) {
+  let hit = await comicSearch(source.id, title);
+  if (!hit?.slug && source.id === "komikstation") {
+    const slug = comicTitleSlug(title);
+    if (slug) hit = { title, slug };
+  }
+  if (!hit?.slug) return null;
+  const path = source.detail === "manga"
+    ? `/comic/${source.id}/manga/${encodeURIComponent(hit.slug)}`
+    : `/comic/${source.id}/detail/${encodeURIComponent(hit.slug)}`;
+  const payload = await fetchJson(`${SANKA}${path}`, { timeout: 8000 });
+  const metaTitle = cleanComicTitle(
+    payload?.detail?.title || payload?.data?.title || payload?.details?.title || payload?.title || hit.title
   );
+  if (!bestTitleMatch(title, [{ title: metaTitle }], (row) => row.title)) return null;
+  const chapters = [];
+  const seen = new Set();
+  comicChapterRows(payload).forEach((row) => {
+    const id = comicChapterId(source, hit.slug, row);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    const number = readSankaChapterNumber(row);
+    chapters.push({
+      id,
+      number: number || cleanComicTitle(row.title) || "Chapter",
+      title: number ? `Chapter ${number}` : (cleanComicTitle(row.title) || "Chapter"),
+      pages: 1,
+    });
+  });
   if (!chapters.length) return null;
   return {
-    id: "komikstation",
-    label: "Komikstation",
+    id: source.id,
+    label: source.label,
     chapters,
-    notice: readable.notice || "Chapter pages come from Komikstation.",
+    notice: hostedChapterNotice(title, chapters, source.shortName)
+      || `Indonesian chapter pages come from ${source.shortName}.`,
   };
 }
 
 export function loadMangaSources(title) {
   const key = `manga-sources:${compactTitle(title)}`;
   return cached(key, async () => {
-    const [english, dex] = await Promise.all([
+    const [english, dex, ...comics] = await Promise.all([
       weebReader(title).catch(() => null),
       mangadexReader(title).catch(() => null),
+      ...COMIC_READERS.map((source) => loadComicReader(source, title).catch(() => null)),
     ]);
     const sources = [];
     if (english?.chapters?.length) sources.push(english);
     if (dex?.chapters?.length) sources.push(dex);
-    if (!sources.length) {
-      try {
-        const station = await komikstationReader(title);
-        if (station?.chapters?.length) sources.push(station);
-      } catch {
-        // Komikstation still covers a manhwa when no English scan matched.
-      }
-    }
+    comics.forEach((source) => {
+      if (source?.chapters?.length) sources.push(source);
+    });
     if (!sources.length) {
       const missed = new Error("No chapter pages");
       missed.noStore = true;

@@ -7,7 +7,7 @@ import Comments from "./comments";
 import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
 import WatchRail from "./WatchRail";
 import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
-import { buildReaderSources, isImageChapter, newestChapterIndex, visibleReaderNotice } from "./readerSources";
+import { buildReaderSources, isImageChapter, newestChapterIndex, nextReaderSource, visibleReaderNotice } from "./readerSources";
 
 function MangaId() {
   const { id } = useParams();
@@ -101,7 +101,8 @@ function MangaId() {
     if (!manga) return undefined;
     const sourceId = currentSource?.id || "";
     if (!chapter?.id || !isImageChapter(chapter)) {
-      const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id) && source.chapters.some(isImageChapter));
+      if (sourceId) failedSources.current.add(sourceId);
+      const next = nextReaderSource(sources, failedSources.current);
       if (next) {
         followNewest.current = true;
         setActiveSource(next.id);
@@ -127,7 +128,7 @@ function MangaId() {
         if (cancelled) return;
         if (!nextPages.length) {
           failedSources.current.add(sourceId);
-          const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id));
+          const next = nextReaderSource(sources, failedSources.current);
           if (next) {
             followNewest.current = true;
             setActiveSource(next.id);
@@ -144,7 +145,7 @@ function MangaId() {
       .catch(() => {
         if (cancelled) return;
         failedSources.current.add(sourceId);
-        const next = sources.find((source) => source.id !== sourceId && !failedSources.current.has(source.id));
+        const next = nextReaderSource(sources, failedSources.current);
         if (next) {
           followNewest.current = true;
           setActiveSource(next.id);
@@ -163,6 +164,21 @@ function MangaId() {
       cancelled = true;
     };
   }, [manga, sources, chapter, currentSource?.id, sourcesReady]);
+
+  useEffect(() => {
+    if (!pages.length || !currentSource?.id) return undefined;
+    if (!pages.every((_, index) => failedPages[index])) return undefined;
+    failedSources.current.add(currentSource.id);
+    const next = nextReaderSource(sources, failedSources.current);
+    if (!next) return undefined;
+    followNewest.current = true;
+    setActiveSource(next.id);
+    setChapterIndex(newestChapterIndex(next.chapters));
+    setPages([]);
+    setFailedPages({});
+    setPageNote("");
+    return undefined;
+  }, [failedPages, pages, currentSource, sources]);
 
   useEffect(() => {
     if (skipChapterScroll.current) {

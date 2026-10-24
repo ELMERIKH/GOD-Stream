@@ -1052,7 +1052,7 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  max-width: min(220px, 100%);
+  max-width: min(280px, 100%);
   min-height: 40px;
   padding: 0.35rem 0.85rem;
   overflow: hidden;
