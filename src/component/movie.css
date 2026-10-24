@@ -530,6 +530,61 @@ body {
   margin: 0 0 0.75rem;
 }
 
+.status-banner,
+.reader-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(225, 29, 72, 0.18), transparent 55%),
+    #121016;
+}
+
+.status-banner p,
+.reader-fallback p {
+  margin: 0;
+  color: #fecdd3;
+}
+
+.status-banner button,
+.reader-fallback button,
+.search-box .status-banner button,
+.search-box .status-banner button:hover,
+.search-box .reader-fallback button,
+.search-box .reader-fallback button:hover {
+  min-height: 38px;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fb7185, var(--gold));
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.search-box .status-banner,
+.watch-page .status-banner {
+  width: 100%;
+}
+
+.reader-fallback {
+  min-height: 280px;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.source-row button.is-blocked {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
 .catalog-note {
   margin: 0.75rem 0 0;
   color: var(--muted);

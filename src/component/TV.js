@@ -19,7 +19,7 @@ function TVList() {
       searchId="show-search"
       placeholder="Search shows..."
       href={(item) => `/tv/${item.id}`}
-      load={(page, search) => loadTmdbList({ kind: 'tv', path, page, search })}
+      load={(page, search, fresh) => loadTmdbList({ kind: 'tv', path, page, search, fresh })}
       filters={(
         <div>
           {FILTERS.map((filter) => (

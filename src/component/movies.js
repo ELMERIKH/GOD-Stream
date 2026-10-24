@@ -19,7 +19,7 @@ function MovieList() {
       searchId="movie-search"
       placeholder="Search movies..."
       href={(item) => `/movie/${item.id}`}
-      load={(page, search) => loadTmdbList({ kind: 'movie', path, page, search })}
+      load={(page, search, fresh) => loadTmdbList({ kind: 'movie', path, page, search, fresh })}
       filters={(
         <div>
           {FILTERS.map((filter) => (

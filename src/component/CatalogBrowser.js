@@ -28,6 +28,7 @@ function CatalogBrowser({ kind, preset }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [query, setQuery] = useState("");
   const [retryToken, setRetryToken] = useState(0);
+  const [stale, setStale] = useState(false);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -41,26 +42,30 @@ function CatalogBrowser({ kind, preset }) {
     let cancelled = false;
     setLoading(true);
     setError("");
+    setStale(false);
 
     const activeQuery = query.length >= 2 ? query : "";
+    const fresh = retryToken > 0;
     const load = activeQuery
       ? kind === "manga"
-        ? searchManga(activeQuery, page)
-        : searchAnime(activeQuery, page)
+        ? searchManga(activeQuery, page, fresh)
+        : searchAnime(activeQuery, page, fresh)
       : kind === "manga"
-        ? listManga(page)
-        : listAnime(preset, page);
+        ? listManga(page, fresh)
+        : listAnime(preset, page, fresh);
 
     load
       .then((result) => {
         if (cancelled) return;
         setItems(result.items);
         setHasNext(result.hasNext);
+        setStale(Boolean(result.stale));
       })
       .catch(() => {
         if (cancelled) return;
         setItems([]);
         setHasNext(false);
+        setStale(false);
         setError("Every catalog source failed. Try again in a moment.");
       })
       .finally(() => {
@@ -100,6 +105,13 @@ function CatalogBrowser({ kind, preset }) {
         value={searchTerm}
         onChange={(event) => setSearchTerm(event.target.value)}
       />
+
+      {!loading && stale && items.length > 0 && (
+        <div className="status-banner" role="status">
+          <p>Showing a saved copy while sources catch up.</p>
+          <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+        </div>
+      )}
 
       {loading && <CatalogSkeleton />}
       {!loading && error && (

@@ -32,6 +32,8 @@ function MangaId() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pagesLoading, setPagesLoading] = useState(false);
   const [pageNote, setPageNote] = useState("");
+  const [pageFailed, setPageFailed] = useState(false);
+  const [pageTry, setPageTry] = useState(0);
   const [extraSources, setExtraSources] = useState([]);
   const [activeSource, setActiveSource] = useState("");
   const [retryToken, setRetryToken] = useState(0);
@@ -45,7 +47,7 @@ function MangaId() {
     setPages([]);
     setExtraSources([]);
     setActiveSource("");
-    getMangaDetail(id)
+    getMangaDetail(id, retryToken > 0)
       .then((detail) => {
         if (!cancelled) setManga(detail);
       })
@@ -136,6 +138,19 @@ function MangaId() {
     };
   }, [manga, chapter, chapterIndex]);
 
+  useEffect(() => {
+    setPageFailed(false);
+  }, [pages, pageIndex]);
+
+  useEffect(() => {
+    const upcoming = pages[pageIndex + 1];
+    if (!upcoming) return undefined;
+    const img = new Image();
+    img.referrerPolicy = "no-referrer";
+    img.src = upcoming;
+    return undefined;
+  }, [pages, pageIndex]);
+
   if (loading) {
     return <CatalogSkeleton variant="watch" label="Opening the reader" />;
   }
@@ -158,6 +173,12 @@ function MangaId() {
   return (
     <div className="watch-page">
       <div className="watch-stage">
+        {manga.stale ? (
+          <div className="status-banner" role="status">
+            <p>Showing a saved copy while sources catch up.</p>
+            <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+          </div>
+        ) : null}
         <div className="source-row" role="group" aria-label="Reading sources">
           {sources.map((source) => (
             <button
@@ -215,13 +236,31 @@ function MangaId() {
               <LoaderMark />
               <p>Loading pages</p>
             </div>
+          ) : pageFailed ? (
+            <div className="reader-fallback" role="alert">
+              <p>This page did not load.</p>
+              <div className="reader-toolbar">
+                <button type="button" onClick={() => { setPageFailed(false); setPageTry((value) => value + 1); }}>
+                  Retry page
+                </button>
+                <button
+                  type="button"
+                  disabled={pageIndex >= pageCount - 1}
+                  onClick={() => setPageIndex((value) => Math.min(pageCount - 1, value + 1))}
+                >
+                  Next page
+                </button>
+              </div>
+            </div>
           ) : pages[pageIndex] ? (
             <img
+              key={`${pages[pageIndex]}:${pageTry}`}
               className="reader-page"
               src={pages[pageIndex]}
               alt={`${manga.title} page ${pageIndex + 1}`}
               referrerPolicy="no-referrer"
-              onError={onPosterError}
+              decoding="async"
+              onError={() => setPageFailed(true)}
             />
           ) : null}
       </div>

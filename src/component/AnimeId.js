@@ -25,6 +25,7 @@ function Anime() {
   const [activeServer, setActiveServer] = useState("");
   const [embedUrl, setEmbedUrl] = useState("");
   const [embedNote, setEmbedNote] = useState("");
+  const [blockedServers, setBlockedServers] = useState([]);
   const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
@@ -37,7 +38,8 @@ function Anime() {
     setActiveServer("");
     setEmbedUrl("");
     setEmbedNote("");
-    getAnimeDetail(id)
+    setBlockedServers([]);
+    getAnimeDetail(id, retryToken > 0)
       .then((detail) => {
         if (!cancelled) setMovie(detail);
       })
@@ -64,23 +66,28 @@ function Anime() {
     let cancelled = false;
     setEmbedUrl("");
     setEmbedNote("Loading player");
+    setBlockedServers([]);
     loadEpisodeServers(episode.episodeId)
       .then(async (list) => {
         if (cancelled) return;
         setServers(list);
+        const skipped = [];
         for (const server of list) {
           const url = await resolveEpisodeServer(server);
           if (cancelled) return;
           if (url) {
+            setBlockedServers(skipped);
             setActiveServer(server.id);
             setEmbedUrl(url);
             setEmbedNote("");
             return;
           }
+          skipped.push(server.id);
         }
+        setBlockedServers(skipped);
         setActiveServer("");
         setEmbedUrl("");
-        setEmbedNote(list.length ? "This episode has no embeddable player." : "This episode has no stream sources.");
+        setEmbedNote(list.length ? "These hosts block embedded playback." : "This episode has no stream sources.");
       })
       .catch(() => {
         if (cancelled) return;
@@ -161,19 +168,31 @@ function Anime() {
             )}
           </div>
         )}
+        {movie.stale ? (
+          <div className="status-banner" role="status">
+            <p>Showing a saved copy while sources catch up.</p>
+            <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+          </div>
+        ) : null}
         {servers.length > 0 ? (
           <div className="source-row" role="group" aria-label="Stream sources">
             {servers.map((server) => (
               <button
                 key={server.id || server.label}
                 type="button"
-                className={server.id === activeServer ? "is-active" : ""}
+                className={[
+                  server.id === activeServer ? "is-active" : "",
+                  blockedServers.includes(server.id) ? "is-blocked" : "",
+                ].filter(Boolean).join(" ")}
                 onClick={() => chooseServer(server)}
               >
                 {server.label}
               </button>
             ))}
           </div>
+        ) : null}
+        {blockedServers.length > 0 && embedUrl ? (
+          <p className="catalog-note">Some hosts block embedded players. The highlighted source is the one that can play here.</p>
         ) : null}
         {watchLinks.length > 0 ? (
           <div className="source-row" aria-label="More stream links">

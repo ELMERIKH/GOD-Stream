@@ -77,22 +77,27 @@ function CatalogView({
   const [totalPages, setTotalPages] = useState(1);
   const [source, setSource] = useState('');
   const [loading, setLoading] = useState(true);
+  const [stale, setStale] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    loadRef.current(page, query)
+    setStale(false);
+    loadRef.current(page, query, retryToken > 0)
       .then((result) => {
         if (ignore) return;
         setItems(result?.items || []);
         setTotalPages(result?.totalPages || 1);
         setSource(result?.source || '');
+        setStale(Boolean(result?.stale));
       })
       .catch(() => {
         if (ignore) return;
         setItems([]);
         setTotalPages(1);
         setSource('');
+        setStale(false);
       })
       .finally(() => {
         if (!ignore) setLoading(false);
@@ -100,7 +105,7 @@ function CatalogView({
     return () => {
       ignore = true;
     };
-  }, [page, query, queryKey]);
+  }, [page, query, queryKey, retryToken]);
 
   return (
     <div className="search-box">
@@ -127,10 +132,19 @@ function CatalogView({
       />
       {filters}
       {source && <p className="catalog-source">Source: {source}</p>}
+      {!loading && stale && items.length > 0 && (
+        <div className="status-banner" role="status">
+          <p>Showing a saved copy while sources catch up.</p>
+          <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+        </div>
+      )}
       {loading && <CatalogSkeleton />}
       <div className="movie-component">
         {!loading && items.length === 0 && (
-          <p className="catalog-empty" role="status">No titles loaded from the available sources.</p>
+          <div className="catalog-empty" role="status">
+            <p>No titles loaded from the available sources.</p>
+            <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button>
+          </div>
         )}
         {items.map((item) => (
           <div key={item.id} className="movie-card">

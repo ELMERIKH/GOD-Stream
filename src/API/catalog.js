@@ -176,11 +176,12 @@ function recall(id) {
   }
 }
 
-function readHttp(key) {
+function readHttp(key, allowExpired = false) {
   try {
     const all = JSON.parse(sessionStorage.getItem(HTTP_KEY) || "{}");
     const row = all[key];
-    if (!row || row.exp < Date.now()) return null;
+    if (!row) return null;
+    if (!allowExpired && row.exp < Date.now()) return null;
     return row.value;
   } catch {
     return null;
@@ -188,44 +189,79 @@ function readHttp(key) {
 }
 
 function writeHttp(key, value, ttl) {
-  try {
-    const all = JSON.parse(sessionStorage.getItem(HTTP_KEY) || "{}");
+  const save = (all) => {
     all[key] = { exp: Date.now() + ttl, value };
     const keys = Object.keys(all);
     if (keys.length > 40) {
       keys.slice(0, keys.length - 40).forEach((stale) => delete all[stale]);
     }
     sessionStorage.setItem(HTTP_KEY, JSON.stringify(all));
+  };
+  try {
+    save(JSON.parse(sessionStorage.getItem(HTTP_KEY) || "{}"));
   } catch {
-    // Quota and private mode keep the in-memory copy.
+    try {
+      save({});
+    } catch {
+      // Quota and private mode keep the in-memory copy.
+    }
   }
 }
 
-function cached(key, loader, ttl = LIST_TTL) {
-  const now = Date.now();
-  const mem = responseMemory.get(key);
-  if (mem && mem.exp > now) return Promise.resolve(mem.value);
+function hasPayload(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.length > 0;
+  if (value && Array.isArray(value.items)) return value.items.length > 0;
+  if (value && typeof value === "object") return Boolean(value.title || value.id);
+  return false;
+}
 
-  const stored = readHttp(key);
-  if (stored != null) {
-    responseMemory.set(key, { exp: now + ttl, value: stored });
-    return Promise.resolve(stored);
+function markStale(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return { ...value, stale: true };
   }
+  return value;
+}
 
-  if (inflight.has(key)) return inflight.get(key);
+function cached(key, loader, ttl = LIST_TTL, fresh = false) {
+  const now = Date.now();
+  if (!fresh) {
+    const mem = responseMemory.get(key);
+    if (mem && mem.exp > now) return Promise.resolve(mem.value);
+
+    const stored = readHttp(key);
+    if (stored != null) {
+      responseMemory.set(key, { exp: now + ttl, value: stored });
+      return Promise.resolve(stored);
+    }
+
+    if (inflight.has(key)) return inflight.get(key);
+  }
 
   const promise = Promise.resolve()
     .then(loader)
     .then((value) => {
       const empty = Array.isArray(value) ? value.length === 0 : value?.items?.length === 0;
       const keep = empty ? Math.min(ttl, 90 * 1000) : ttl;
-      responseMemory.set(key, { exp: Date.now() + keep, value });
+      const clean = value && typeof value === "object" && !Array.isArray(value)
+        ? { ...value, stale: false }
+        : value;
+      responseMemory.set(key, { exp: Date.now() + keep, value: clean });
       writeHttp(key, value, keep);
       inflight.delete(key);
-      return value;
+      return clean;
     })
     .catch((error) => {
       inflight.delete(key);
+      const mem = responseMemory.get(key);
+      const expired = readHttp(key, true);
+      const fallback = (mem && hasPayload(mem.value) ? mem.value : null)
+        || (hasPayload(expired) ? expired : null);
+      if (fallback) {
+        const stale = markStale(fallback);
+        responseMemory.set(key, { exp: Date.now() + 20 * 1000, value: stale });
+        return stale;
+      }
       throw error;
     });
 
@@ -707,14 +743,28 @@ export function loadEpisodeServers(episodeId) {
   }, 10 * 60 * 1000);
 }
 
+export function isPlayableEmbed(url) {
+  const value = String(url || "").trim();
+  if (!/^https:\/\//i.test(value)) return false;
+  let host = "";
+  try {
+    host = new URL(value).hostname;
+  } catch {
+    return false;
+  }
+  if (/desustream/i.test(host)) return false;
+  if (/\/maintenance\/?/i.test(value)) return false;
+  return true;
+}
+
 export function resolveEpisodeServer(server) {
   if (!server) return Promise.resolve("");
-  if (server.url) return Promise.resolve(server.url);
+  if (server.url) return Promise.resolve(isPlayableEmbed(server.url) ? server.url : "");
   if (!server.id) return Promise.resolve("");
   return cached(`sanka:server:${server.id}`, async () => {
     const resolved = await fetchJson(`${SANKA}/anime/server/${encodeURIComponent(server.id)}`);
     return resolved?.data?.url || "";
-  }, 10 * 60 * 1000);
+  }, 10 * 60 * 1000).then((url) => (isPlayableEmbed(url) ? url : ""));
 }
 
 export function loadEpisodeEmbed(episodeId) {
@@ -1045,18 +1095,18 @@ async function listAnimeFresh(preset, page = 1) {
       ? "/popular?type=anime"
       : "/latest?type=anime";
 
-  return firstList([
-    () => (preset === "trending" ? nozuCollection(nozuPath, "anime") : Promise.resolve({ items: [] })),
-    () => anilistPage({ type: "ANIME", page, ...anilistPreset }),
-    () => nozuCollection(nozuPath, "anime"),
-    () => {
-      if (preset === "trending" && page === 1) {
-        return kitsuCollection("/trending/anime?limit=20", "anime");
-      }
-      return kitsuCollection(kitsuListPath("anime", preset, page), "anime");
-    },
-    () => (preset === "recent" ? sankaAnimeList(page) : Promise.resolve({ items: [] })),
-  ]);
+  const calls = [];
+  if (preset === "trending") calls.push(() => nozuCollection(nozuPath, "anime"));
+  calls.push(() => anilistPage({ type: "ANIME", page, ...anilistPreset }));
+  if (preset !== "trending") calls.push(() => nozuCollection(nozuPath, "anime"));
+  calls.push(() => {
+    if (preset === "trending" && page === 1) {
+      return kitsuCollection("/trending/anime?limit=20", "anime");
+    }
+    return kitsuCollection(kitsuListPath("anime", preset, page), "anime");
+  });
+  if (preset === "recent") calls.push(() => sankaAnimeList(page));
+  return firstList(calls);
 }
 
 async function searchAnimeFresh(query, page = 1) {
@@ -1250,12 +1300,27 @@ async function getAnimeDetailFresh(catalogId) {
     if (!loaders[parsed.source]) throw new Error("Unknown anime source");
     const detail = await loaders[parsed.source](parsed.raw);
     if (!detail?.title) throw new Error("Anime title was not found");
-    return attachPreview(await attachPlayableEpisodes(detail));
+    return enrichAnime(detail);
   } catch (error) {
     const fallback = await fallbackDetail(parsed, recall(parsed.id), searchAnime, loaders);
-    if (fallback) return attachPreview(await attachPlayableEpisodes(fallback));
+    if (fallback) return enrichAnime(fallback);
     throw error;
   }
+}
+
+async function enrichAnime(detail) {
+  const [previewed, playable] = await Promise.all([
+    attachPreview(detail),
+    attachPlayableEpisodes(detail),
+  ]);
+  return {
+    ...previewed,
+    episodes: playable.episodes || previewed.episodes || [],
+    notice: playable.notice || previewed.notice || "",
+    preview: previewed.preview || playable.preview || null,
+    malId: previewed.malId || playable.malId || null,
+    watchLinks: previewed.watchLinks || playable.watchLinks || [],
+  };
 }
 
 async function listMangaFresh(page = 1) {
@@ -1315,33 +1380,33 @@ async function getMangaDetailFresh(catalogId) {
 
 const TMDB_KEY = "152f41397d36a9af171b938124f0281c";
 
-export function listAnime(preset, page = 1) {
-  return cached(`anime:${preset}:${page}`, () => listAnimeFresh(preset, page));
+export function listAnime(preset, page = 1, fresh = false) {
+  return cached(`anime:${preset}:${page}`, () => listAnimeFresh(preset, page), LIST_TTL, fresh);
 }
 
-export function searchAnime(query, page = 1) {
+export function searchAnime(query, page = 1, fresh = false) {
   const q = String(query || "").trim();
-  return cached(`anime-search:${q.toLowerCase()}:${page}`, () => searchAnimeFresh(q, page));
+  return cached(`anime-search:${q.toLowerCase()}:${page}`, () => searchAnimeFresh(q, page), LIST_TTL, fresh);
 }
 
-export function getAnimeDetail(catalogId) {
-  return cached(`anime-detail:${catalogId}`, () => getAnimeDetailFresh(catalogId), DETAIL_TTL);
+export function getAnimeDetail(catalogId, fresh = false) {
+  return cached(`anime-detail:${catalogId}`, () => getAnimeDetailFresh(catalogId), DETAIL_TTL, fresh);
 }
 
-export function listManga(page = 1) {
-  return cached(`manga:${page}`, () => listMangaFresh(page));
+export function listManga(page = 1, fresh = false) {
+  return cached(`manga:${page}`, () => listMangaFresh(page), LIST_TTL, fresh);
 }
 
-export function searchManga(query, page = 1) {
+export function searchManga(query, page = 1, fresh = false) {
   const q = String(query || "").trim();
-  return cached(`manga-search:${q.toLowerCase()}:${page}`, () => searchMangaFresh(q, page));
+  return cached(`manga-search:${q.toLowerCase()}:${page}`, () => searchMangaFresh(q, page), LIST_TTL, fresh);
 }
 
-export function getMangaDetail(catalogId) {
-  return cached(`manga-detail:${catalogId}`, () => getMangaDetailFresh(catalogId), DETAIL_TTL);
+export function getMangaDetail(catalogId, fresh = false) {
+  return cached(`manga-detail:${catalogId}`, () => getMangaDetailFresh(catalogId), DETAIL_TTL, fresh);
 }
 
-export function loadTmdbList({ kind, path, page = 1, search = "" }) {
+export function loadTmdbList({ kind, path, page = 1, search = "", fresh = false }) {
   const query = String(search || "").trim();
   return cached(`tmdb:${kind}:${path}:${page}:${query.toLowerCase()}`, async () => {
     const url = query
@@ -1358,7 +1423,7 @@ export function loadTmdbList({ kind, path, page = 1, search = "" }) {
       totalPages: Math.min(data.total_pages || 1, 500),
       source: "TMDB",
     };
-  });
+  }, LIST_TTL, fresh);
 }
 
 export function loadHomeBillboard() {
@@ -1380,7 +1445,7 @@ export function loadHomeBillboard() {
   });
 }
 
-export function loadPokemon(page = 1, search = "") {
+export function loadPokemon(page = 1, search = "", fresh = false) {
   const query = String(search || "").trim().toLowerCase();
   return cached(`poke:${page}:${query}`, async () => {
     if (query) {
@@ -1400,7 +1465,7 @@ export function loadPokemon(page = 1, search = "") {
       totalPages: Math.max(1, Math.ceil((data.count || 20) / 20)),
       source: "PokeAPI",
     };
-  });
+  }, LIST_TTL, fresh);
 }
 
 function mapPokemon(data) {

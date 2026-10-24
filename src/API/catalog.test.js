@@ -252,3 +252,81 @@ test("episode source buttons keep the highest quality for each server", async ()
   expect(servers.map((server) => server.label)).toEqual(["filedon 720p", "vidhide 360p", "mega 720p"]);
   expect(await loadEpisodeEmbed("ep-1")).toBe("https://filedon.co/embed/high");
 });
+
+test("embed skips hosts that refuse iframes", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/anime/episode/")) {
+      return jsonResponse({
+        data: {
+          server: {
+            qualities: [
+              {
+                title: "720p",
+                serverList: [
+                  { title: "filedon", serverId: "bad" },
+                  { title: "vidhide", serverId: "good" },
+                ],
+              },
+            ],
+          },
+        },
+      });
+    }
+    if (href.includes("/anime/server/bad")) {
+      return jsonResponse({ data: { url: "https://desustream.com/maintenance/" } });
+    }
+    if (href.includes("/anime/server/good")) {
+      return jsonResponse({ data: { url: "https://odvidhide.com/embed/ok" } });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  expect(await loadEpisodeEmbed("ep-blocked")).toBe("https://odvidhide.com/embed/ok");
+});
+
+test("a failed refresh keeps the last anime list and retry bypasses it", async () => {
+  let fail = false;
+  global.fetch.mockImplementation((url) => {
+    if (fail) return Promise.reject(new Error("down"));
+    if (String(url).includes("graphql.anilist.co")) {
+      return jsonResponse({
+        data: {
+          Page: {
+            pageInfo: { hasNextPage: false },
+            media: [
+              {
+                id: 20,
+                title: { romaji: "Naruto", english: "Naruto" },
+                coverImage: { large: "https://s4.anilist.co/naruto.jpg" },
+                averageScore: 80,
+              },
+            ],
+          },
+        },
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${url}`));
+  });
+
+  const first = await listAnime("recent", 1);
+  expect(first.stale).toBe(false);
+  expect(first.items[0].title).toBe("Naruto");
+
+  fail = true;
+  const now = Date.now;
+  Date.now = () => now() + 11 * 60 * 1000;
+  try {
+    const second = await listAnime("recent", 1);
+    expect(second.stale).toBe(true);
+    expect(second.items[0].title).toBe("Naruto");
+    const callsBeforeRetry = global.fetch.mock.calls.length;
+    fail = false;
+    const third = await listAnime("recent", 1, true);
+    expect(third.stale).toBe(false);
+    expect(third.items[0].title).toBe("Naruto");
+    expect(global.fetch.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
+  } finally {
+    Date.now = now;
+  }
+});

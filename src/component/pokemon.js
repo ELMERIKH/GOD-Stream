@@ -8,7 +8,7 @@ function POKEList() {
       searchId="poke-search"
       placeholder="Search pokemon..."
       href={(item) => `/movie/${item.id}`}
-      load={(page, search) => loadPokemon(page, search)}
+      load={(page, search, fresh) => loadPokemon(page, search, fresh)}
     />
   );
 }
