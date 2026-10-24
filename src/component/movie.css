@@ -131,10 +131,15 @@
 .movie-component h4 {
   margin: 0.15rem 0 0;
   font-family: var(--font);
-  font-size: 0.98rem;
-  font-weight: 580;
+  font-size: 0.95rem;
+  font-weight: 650;
   font-style: normal;
   line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.5em;
 }
 
 .h2 {
@@ -150,13 +155,21 @@
 
 .movie-card .p,
 .movie-component .p {
+  position: absolute;
+  top: 10px;
+  left: 10px;
   margin: 0;
-  padding: 0;
-  color: var(--gold);
-  background: transparent;
+  padding: 0.2rem 0.5rem;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.72);
   box-shadow: none;
-  border-radius: 0;
-  font-size: 0.85rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.movie-card {
+  position: relative;
 }
 
 .ep {

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Home.css';
+
+const KEY = '152f41397d36a9af171b938124f0281c';
 
 const picks = [
   { to: '/movies', title: 'Movies', text: 'Now playing, popular, and top rated', tone: 'movies' },
@@ -9,47 +11,114 @@ const picks = [
   { to: '/Manga', title: 'Manga', text: 'Find a series and pick up the story', tone: 'manga' },
 ];
 
+function imageUrl(path, size) {
+  return path ? `https://image.tmdb.org/t/p/${size}${path}` : '';
+}
+
 const Home = () => {
+  const [titles, setTitles] = useState([]);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    async function load() {
+      const res = await fetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${KEY}`);
+      if (!res.ok) throw new Error('posters unavailable');
+      const data = await res.json();
+      const rows = (data.results || []).filter((movie) => movie.poster_path && movie.backdrop_path);
+      if (!ignore) setTitles(rows);
+    }
+    load().catch(() => {
+      if (!ignore) setFailed(true);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const featured = titles[0];
+  const spotlights = titles.slice(1, 4);
+
   return (
     <div className="home">
-      <section className="hero">
-        <div className="hero__copy">
-          <p className="eyebrow">Reviews, ratings, and new releases</p>
-          <h1>Welcome to movie reviews</h1>
+      <section className="billboard">
+        {featured && (
+          <img
+            className="billboard__image"
+            src={imageUrl(featured.backdrop_path, 'w1280')}
+            alt=""
+          />
+        )}
+        <div className="billboard__shade" />
+        <div className="billboard__copy">
+          <p className="eyebrow">Now playing</p>
+          <h1>{featured ? featured.title : 'Welcome to movie reviews'}</h1>
           <p className="lede">
-            Watch, rate, and discuss all your favorite movies, shows, anime, and manga.
-          </p>
-          <p className="lede lede-quiet">
-            Explore the world of entertainment and stay updated with the latest releases.
+            {featured
+              ? featured.overview
+              : 'Watch, rate, and discuss all your favorite movies, shows, anime, and manga.'}
           </p>
           <div className="hero__actions">
-            <Link className="btn-gold" to="/movies">Browse movies</Link>
-            <Link className="btn-ghost" to="/Anime">Watch anime</Link>
+            {featured && (
+              <Link className="btn-gold" to={`/movie/${featured.id}`}>
+                Open {featured.title}
+              </Link>
+            )}
+            <Link className="btn-ghost" to="/movies">Browse movies</Link>
           </div>
+          {failed && <p className="lede lede-quiet">Posters could not be loaded.</p>}
         </div>
-        <div className="hero__stage" aria-hidden="true">
-          <div className="poster poster-a"><span>Now</span></div>
-          <div className="poster poster-b"><span>Top</span></div>
-          <div className="poster poster-c"><span>New</span></div>
+        <div className="spotlights" aria-label="Featured posters">
+          {(spotlights.length ? spotlights : [0, 1, 2]).map((movie, index) => (
+            movie.id ? (
+              <Link
+                key={movie.id}
+                to={`/movie/${movie.id}`}
+                className={`spotlight spotlight-${index}`}
+              >
+                <img src={imageUrl(movie.poster_path, 'w500')} alt={movie.title} />
+              </Link>
+            ) : (
+              <div key={index} className={`spotlight spotlight-${index} is-loading`} />
+            )
+          ))}
+        </div>
+      </section>
+
+      <section className="rail-wrap">
+        <div className="rail-head">
+          <h2>In theaters</h2>
+          <Link to="/movies">See all</Link>
+        </div>
+        <div className="rail">
+          {titles.length === 0 && !failed && Array.from({ length: 8 }, (_, index) => (
+            <div key={index} className="rail__card is-loading" />
+          ))}
+          {titles.map((movie) => (
+            <Link key={movie.id} to={`/movie/${movie.id}`} className="rail__card">
+              <img src={imageUrl(movie.poster_path, 'w342')} alt={movie.title} />
+              <span>{movie.title}</span>
+            </Link>
+          ))}
         </div>
       </section>
 
       <section className="picks">
         <h2>Start somewhere</h2>
         <div className="tile-grid">
-          {picks.map((pick) => (
-            <Link key={pick.to} to={pick.to} className={`tile tile-${pick.tone}`}>
-              <span className="tile__title">{pick.title}</span>
-              <span className="tile__text">{pick.text}</span>
-            </Link>
-          ))}
+          {picks.map((pick, index) => {
+            const art = titles[index + 4];
+            return (
+              <Link key={pick.to} to={pick.to} className={`tile tile-${pick.tone}`}>
+                {art && (
+                  <img src={imageUrl(art.poster_path, 'w342')} alt="" />
+                )}
+                <span className="tile__title">{pick.title}</span>
+                <span className="tile__text">{pick.text}</span>
+              </Link>
+            );
+          })}
         </div>
-      </section>
-
-      <section className="closer">
-        <h2>Pick a title and start talking</h2>
-        <p>Rate what you watch, then leave a comment for the next person.</p>
-        <Link className="btn-gold" to="/movies">Browse movies</Link>
       </section>
     </div>
   );
