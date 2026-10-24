@@ -6,6 +6,7 @@ const path = require("path");
 const http = require("http");
 const { createServer } = require("./server");
 const { apiUpstream, imageTarget } = require("./mangadexProxy");
+const { weebImageTarget, weebUpstream } = require("./weebProxy");
 
 function request(port, urlPath) {
   return new Promise((resolve, reject) => {
@@ -75,6 +76,29 @@ test("MangaDex proxy allowlist accepts API reads and at-home images only", () =>
   assert.equal(imageTarget("https://api.mangadex.org/covers/id/file.jpg"), null);
   assert.equal(imageTarget("https://uploads.mangadex.org/auth/secret"), null);
   assert.equal(imageTarget("https://evil.example/data/a.jpg"), null);
+
+  const search = new URL(weebUpstream("/api/weebcentral/search/data", "?text=Kagurabachi&adult=True"));
+  assert.equal(search.hostname, "weebcentral.com");
+  assert.equal(search.pathname, "/search/data");
+  assert.equal(search.searchParams.get("adult"), "False");
+  assert.equal(search.searchParams.get("text"), "Kagurabachi");
+  assert.equal(
+    weebUpstream("/api/weebcentral/series/01J76XYGGM22WZP7T4TKA4ZFAF/full-chapter-list", ""),
+    "https://weebcentral.com/series/01J76XYGGM22WZP7T4TKA4ZFAF/full-chapter-list"
+  );
+  assert.equal(
+    weebUpstream("/api/weebcentral/chapters/01M57RRV54GD4MNM4D2V8WPWR4/images", "?is_prev=False"),
+    "https://weebcentral.com/chapters/01M57RRV54GD4MNM4D2V8WPWR4/images?is_prev=False"
+  );
+  assert.equal(weebUpstream("/api/weebcentral/admin", ""), null);
+  assert.equal(weebUpstream("/api/weebcentral/series/../secret", ""), null);
+  assert.equal(weebUpstream("/api/weebcentral/series/01I00000000000000000000000/full-chapter-list", ""), null);
+  assert.ok(weebImageTarget("https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png"));
+  assert.ok(weebImageTarget("https://official.lowee.us/manga/Fairy-Tail/0545-001.png"));
+  assert.equal(weebImageTarget("https://mangapill.com/manga/a.jpg"), null);
+  assert.equal(weebImageTarget("https://cdn.readdetectiveconan.com/manga/a.jpg"), null);
+  assert.equal(weebImageTarget("https://komikindo.ch/manga/a.jpg"), null);
+  assert.equal(weebImageTarget("http://official.lowee.us/manga/a.png"), null);
 });
 
 test("rejected MangaDex image hosts do not fall through to the app shell", async () => {
@@ -86,11 +110,18 @@ test("rejected MangaDex image hosts do not fall through to the app shell", async
   try {
     const rejected = await request(port, "/api/mangadex-image?url=https%3A%2F%2Fmangapill.com%2Fa.jpg");
     const account = await request(port, "/api/mangadex/account/me");
+    const weebRejected = await request(port, "/api/weeb-image?url=https%3A%2F%2Fmangapill.com%2Fa.jpg");
+    const weebAdmin = await request(port, "/api/weebcentral/admin");
     assert.equal(rejected.status, 400);
     assert.equal(rejected.body, "Image host was rejected");
     assert.doesNotMatch(rejected.body, /StreamGod/);
     assert.equal(account.status, 404);
     assert.equal(account.body, "Not Found");
+    assert.equal(weebRejected.status, 400);
+    assert.equal(weebRejected.body, "Image host was rejected");
+    assert.doesNotMatch(weebRejected.body, /StreamGod/);
+    assert.equal(weebAdmin.status, 404);
+    assert.equal(weebAdmin.body, "Not Found");
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(directory, { recursive: true, force: true });

@@ -10,6 +10,8 @@ import {
   loadMangaSources,
   mergeSankaChapterPages,
   parseSankaChapterPage,
+  parseWeebPageUrls,
+  readerPageUrls,
   searchManga,
   sankaChapterPageInfo,
 } from "./catalog";
@@ -19,6 +21,14 @@ function jsonResponse(body, status = 200) {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
+  });
+}
+
+function textResponse(body, status = 200) {
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => body,
   });
 }
 
@@ -96,23 +106,23 @@ test("searchManga keeps a MangaDex match when the other catalogs fail", async ()
   expect(result.items.some((item) => item.source === "kiryuu")).toBe(false);
   const urls = global.fetch.mock.calls.map((call) => String(call[0]));
   expect(urls.some((url) => url.includes("title=Berserk"))).toBe(true);
-  expect(urls.some((url) => url.includes("/comic/komikindo/search/"))).toBe(true);
+  expect(urls.some((url) => url.includes("weebcentral.com/search/data"))).toBe(true);
+  expect(urls.some((url) => url.includes("adult=False"))).toBe(true);
+  expect(urls.some((url) => url.includes("/comic/komikindo/search/"))).toBe(false);
 });
 
-test("Fairy Tail search returns a Sanka match and ignores unrelated Kiryuu hits", async () => {
+test("Fairy Tail search returns an English match and ignores unrelated Kiryuu hits", async () => {
   global.fetch.mockImplementation((url) => {
     const href = String(url);
-    if (href.includes("/comic/komikindo/search/")) {
-      return jsonResponse({
-        komikList: [
-          { title: "Fairy Tail", slug: "231744-fairy-tail", image: "https://komikindo.ch/fairy.jpg", rating: "8" },
-          { title: "Mashima HERO'S", slug: "mashima-heros", image: "https://komikindo.ch/hero.jpg" },
-        ],
-      });
+    if (href.includes("weebcentral.com/search/data")) {
+      return textResponse(`
+        <span data-tip="Fairy Tail"><a href="https://weebcentral.com/series/01J76XY7E5E1C5Y9J0M2FCVQ8H/Fairy-Tail">Fairy Tail</a></span>
+        <span data-tip="Mashima HERO'S"><a href="https://weebcentral.com/series/01J76XYA5W4JZSM5971AA3809V/Mashima-HEROS">Mashima HERO'S</a></span>
+      `);
     }
-    if (href.includes("/comic/bacakomik/search/")) {
+    if (href.includes("/comic/komikindo/search/") || href.includes("/comic/bacakomik/search/")) {
       return jsonResponse({
-        komikList: [{ title: "Fairy Tail", slug: "fairy-tail", image: "https://bacakomik.example/fairy.jpg" }],
+        komikList: [{ title: "Fairy Tail", slug: "231744-fairy-tail", image: "https://komikindo.ch/fairy.jpg" }],
       });
     }
     if (href.includes("api.mangadex.org")) {
@@ -153,11 +163,12 @@ test("Fairy Tail search returns a Sanka match and ignores unrelated Kiryuu hits"
 
   const result = await searchManga("fairy tail", 1);
   expect(result.items[0]).toMatchObject({
-    id: "sanka:komikindo:231744-fairy-tail",
-    source: "sanka",
+    id: "weebcentral:01J76XY7E5E1C5Y9J0M2FCVQ8H",
+    source: "weebcentral",
     title: "Fairy Tail",
   });
-  expect(result.items.some((item) => item.source === "kiryuu")).toBe(false);
+  expect(result.items.some((item) => item.source === "kiryuu" || item.source === "sanka")).toBe(false);
+  expect(result.items.some((item) => /komikindo|bacakomik/i.test(item.id))).toBe(false);
   expect(result.items.some((item) => /martial peak|solo leveling|mashima/i.test(item.title))).toBe(false);
   expect(result.items.filter((item) => item.title === "Fairy Tail")).toHaveLength(1);
 });
@@ -825,32 +836,22 @@ test("Sanka comic chapter pages keep chapter 1 and the latest chapter", () => {
   expect(shinigami[0].number).toBe("135");
 });
 
-test("loadMangaSources prefers Sanka when it reaches the latest hosted chapter", async () => {
+test("the default manga reader is the English source, not Komikindo", async () => {
   global.fetch.mockImplementation((url) => {
     const href = String(url);
-    if (href.includes("/comic/komikindo/search/")) {
-      return jsonResponse({ komikList: [{ title: "Kagurabachi", slug: "kagurabachi" }] });
+    if (href.includes("weebcentral.com/search/data")) {
+      return textResponse('<span data-tip="Kagurabachi"><a href="https://weebcentral.com/series/01J76XYGGM22WZP7T4TKA4ZFAF/Kagurabachi">Kagurabachi</a></span>');
     }
-    if (href.includes("/comic/komikindo/detail/")) {
-      const page = Number(new URL(href).searchParams.get("page") || "1");
-      if (page === 1) {
-        return jsonResponse({
-          success: true,
-          data: {
-            chapters: [
-              { title: "Chapter 135", slug: "kagurabachi-chapter-135" },
-              { title: "Chapter 100", slug: "kagurabachi-chapter-100" },
-            ],
-          },
-          pagination: { currentPage: 1, hasNextPage: true },
-        });
-      }
+    if (href.includes("/full-chapter-list")) {
+      return textResponse(`
+        <a href="/chapters/01M57RRV54GD4MNM4D2V8WPWR4"><span class="">Chapter 135</span></a>
+        <a href="/chapters/01JC54EVFF69DZWNDNRHD4B80K"><span class="">Chapter 1</span></a>
+      `);
+    }
+    if (href.includes("/comic/komikindo/") || href.includes("/comic/bacakomik/")) {
       return jsonResponse({
-        success: true,
-        data: {
-          chapters: [{ title: "Chapter 1", slug: "kagurabachi-chapter-1" }],
-        },
-        pagination: { currentPage: 2, hasNextPage: false },
+        komikList: [{ title: "Kagurabachi", slug: "kagurabachi" }],
+        data: { chapters: [{ title: "Chapter 135", slug: "kagurabachi-chapter-135" }] },
       });
     }
     if (href.includes("/feed")) {
@@ -882,11 +883,30 @@ test("loadMangaSources prefers Sanka when it reaches the latest hosted chapter",
   });
 
   const sources = await loadMangaSources("Kagurabachi");
-  expect(sources[0].id).toBe("sanka");
-  expect(sources[0].label).toBe("Sanka");
-  expect(sources[0].chapters.map((chapter) => chapter.number)).toEqual(["135", "100", "1"]);
-  expect(sources[0].notice).toMatch(/Chapter 136 is not on Sanka/);
+  expect(sources[0].id).toBe("weebcentral");
+  expect(sources[0].label).toBe("Weeb Central");
+  expect(sources[0].chapters.map((chapter) => chapter.number)).toEqual(["135", "1"]);
+  expect(sources[0].notice).toMatch(/Chapter 136 is not on Weeb Central/);
   expect(sources[0].notice).toMatch(/Showing chapter 135/);
+  expect(sources.some((source) => source.id === "sanka")).toBe(false);
   expect(sources[1].id).toBe("mangadex");
-  expect(global.fetch.mock.calls.map((call) => String(call[0])).some((href) => href.includes("page=2"))).toBe(true);
+  const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+  expect(urls.some((href) => href.includes("/comic/komikindo/"))).toBe(false);
+  expect(urls.some((href) => href.includes("adult=False"))).toBe(true);
+});
+
+test("Weeb Central page lists drop ad images", () => {
+  const pages = parseWeebPageUrls(`
+    <img src="https://cdn.example/jackpot-banner.jpg" alt="Page 1">
+    <img src="https://komikindo.ch/banner.jpg" alt="Page 1">
+    <img src="https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png" alt="Page 1">
+    <img src="https://mangapill.com/a.jpg" alt="Page 2">
+    <img src="/static/images/brand.png" alt="Logo">
+  `);
+  expect(pages).toEqual(["https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png"]);
+  expect(readerPageUrls([
+    "https://official.lowee.us/manga/Fairy-Tail/0001-001.png",
+    "https://ads.example/iklan/banner.jpg",
+    "https://cdn.readdetectiveconan.com/a.jpg",
+  ])).toEqual(["https://official.lowee.us/manga/Fairy-Tail/0001-001.png"]);
 });

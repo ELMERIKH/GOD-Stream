@@ -66,9 +66,32 @@ test("a Kiryuu title that already has Komikstation pages stays on that source", 
       label: "Sanka",
       chapters: [{ id: "sanka:komikindo:martial-peak-chapter-1", number: "1", title: "Chapter 1", pages: 1 }],
     },
+    {
+      id: "weebcentral",
+      label: "Weeb Central",
+      chapters: [{ id: "weebchapter:01J76XY7E5E1C5Y9J0M2FCVQ8H", number: "10", title: "Chapter 10", pages: 1 }],
+    },
   ]);
-  expect(withSanka[0].id).toBe("komikstation");
+  expect(withSanka.map((source) => source.id)).toEqual(["komikstation", "mangadex", "weebcentral"]);
   expect(buildReaderSources(manga, [])).toHaveLength(1);
+});
+
+test("an Indonesian Komikindo list is not the reader when English pages exist", () => {
+  const manga = {
+    source: "sanka",
+    title: "Kagurabachi",
+    notice: "Chapter 136 is not on Sanka. Showing chapter 135.",
+    chapters: [{ id: "sanka:komikindo:kagurabachi-chapter-135", number: "135", title: "Chapter 135", pages: 1 }],
+  };
+  const english = {
+    id: "weebcentral",
+    label: "Weeb Central",
+    notice: "Chapter 136 is not on Weeb Central. Showing chapter 135.",
+    chapters: [{ id: "weebchapter:01M57RRV54GD4MNM4D2V8WPWR4", number: "135", title: "Chapter 135", pages: 1 }],
+  };
+  const sources = buildReaderSources(manga, [english]);
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral"]);
+  expect(sources[0].notice).toMatch(/Weeb Central/);
 });
 
 test("MangaPill chapters are never selected, even as a placeholder list", () => {

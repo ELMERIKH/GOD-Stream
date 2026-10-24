@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { handleMangaDexProxy, isMangaDexApiPath, isMangaDexImagePath } = require("./mangadexProxy");
+const { handleWeebProxy, isWeebApiPath, isWeebImagePath } = require("./weebProxy");
 
 const root = path.resolve(process.env.STATIC_ROOT || path.join(__dirname, "build"));
 const indexFile = path.join(root, "index.html");
@@ -51,6 +52,10 @@ function createServer(directory = root) {
     }
     if (isMangaDexApiPath(pathname) || isMangaDexImagePath(pathname)) {
       handleMangaDexProxy(req, res);
+      return;
+    }
+    if (isWeebApiPath(pathname) || isWeebImagePath(pathname)) {
+      handleWeebProxy(req, res);
       return;
     }
     const requested = path.normalize(path.join(base, pathname));

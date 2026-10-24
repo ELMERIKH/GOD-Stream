@@ -6,6 +6,8 @@
 // Shikimori https://shikimori.io/api : CORS *, YouTube trailer/opening embeds.
 // Sanka https://www.sankavollerei.web.id : CORS *. Episode servers become player buttons.
 // Komikstation chapter images and Kiryuu covers come from the same host.
+// Weeb Central https://weebcentral.com : English chapter lists and page images.
+// Komikindo and BacaKomik pages are Indonesian, so they are not the reader.
 // Nozu https://nozu.me/api/v1 : CORS *. Covers, banners, and official stream links.
 // Not wired: AnimePahe (the public search answers with an anti-bot HTML page, and the
 // published API says it is waiting on a Cloudflare UAM fix — no bypass is included).
@@ -22,7 +24,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v12";
+const HTTP_KEY = "streamgod.http.v15";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -53,11 +55,11 @@ export function sourceLabel(source) {
       anilist: "AniList",
       kitsu: "Kitsu",
       mangadex: "MangaDex",
+      weebcentral: "Weeb Central",
       sanka: "Sanka",
       nozu: "Nozu",
       kiryuu: "Kiryuu",
       komikstation: "Komikstation",
-      sanka: "Sanka",
       mangapill: "MangaPill",
       shikimori: "Shikimori",
     }[source] || source || "Catalog"
@@ -328,6 +330,26 @@ async function fetchJson(url, options = {}) {
       throw new Error(`Request failed (${response.status})`);
     }
     return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchText(url, options = {}) {
+  const timeout = options.timeout || REQUEST_TIMEOUT;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: {
+        Accept: "text/html",
+        ...(options.headers || {}),
+      },
+    });
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    return await response.text();
   } finally {
     clearTimeout(timer);
   }
@@ -1010,8 +1032,123 @@ export function loadEpisodeEmbed(episodeId) {
   });
 }
 
+const WEEB = "https://weebcentral.com";
+const WEEB_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+const WEEB_PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "official.lowee.us"]);
+
+function weebUrl(pathAndQuery) {
+  if (process.env.NODE_ENV !== "test" && typeof window !== "undefined") {
+    return `/api/weebcentral${pathAndQuery}`;
+  }
+  return `${WEEB}${pathAndQuery}`;
+}
+
+function weebPageUrl(absolute) {
+  if (process.env.NODE_ENV === "test" || typeof window === "undefined") return absolute;
+  return `/api/weeb-image?url=${encodeURIComponent(absolute)}`;
+}
+
+function decodeHtml(value) {
+  return plainText(String(value || "").replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code))));
+}
+
+export function readerPageUrls(urls) {
+  return (urls || [])
+    .map((item) => (typeof item === "string" ? item : item?.url || item?.img || ""))
+    .map((url) => String(url || "").trim())
+    .filter((url) => {
+      if (!url) return false;
+      if (/mangapill|readdetectiveconan/i.test(url)) return false;
+      if (/jackpot|bisa[\s-]*pecah|modal[\s-]*rece|iklan|doubleclick|googlesyndication|adsterra|popads|exoclick|hilltopads|clickadu|juicyads|\/ads?\//i.test(url)) return false;
+      return /^https:\/\//i.test(url) || url.startsWith("/api/mangadex-image") || url.startsWith("/api/weeb-image");
+    });
+}
+
+export function parseWeebSearch(html) {
+  const rows = [];
+  const seen = new Set();
+  const pattern = /data-tip="([^"]+)"[\s\S]{0,400}?href="(?:https:\/\/weebcentral\.com)?\/series\/([0-9A-HJKMNP-TV-Z]{26})\//gi;
+  let match = pattern.exec(String(html || ""));
+  while (match) {
+    const title = decodeHtml(match[1]);
+    const id = match[2];
+    if (title && WEEB_ID.test(id) && !seen.has(id)) {
+      seen.add(id);
+      rows.push({
+        id,
+        title,
+        image: `https://temp.compsci88.com/cover/normal/${id}.webp`,
+      });
+    }
+    match = pattern.exec(String(html || ""));
+  }
+  return rows;
+}
+
+export function parseWeebTitle(html) {
+  const page = String(html || "");
+  const heading = page.match(/<h1[^>]*>\s*([^<]+?)\s*<\/h1>/i);
+  if (heading) return decodeHtml(heading[1]);
+  const title = page.match(/<title>\s*([^<|]+)/i);
+  return title ? decodeHtml(title[1]) : "";
+}
+
+export function parseWeebChapters(html) {
+  const chapters = [];
+  const seen = new Set();
+  const pattern = /href="(?:https:\/\/weebcentral\.com)?\/chapters\/([0-9A-HJKMNP-TV-Z]{26})"[\s\S]{0,800}?<span class="">([^<]+)<\/span>/gi;
+  let match = pattern.exec(String(html || ""));
+  while (match) {
+    const id = match[1];
+    if (WEEB_ID.test(id) && !seen.has(id)) {
+      seen.add(id);
+      const label = decodeHtml(match[2]).replace(/\s+/g, " ").trim();
+      const numberMatch = label.match(/(\d+(?:\.\d+)?)/);
+      const number = numberMatch ? numberMatch[1] : label;
+      chapters.push({
+        id: `weebchapter:${id}`,
+        number,
+        title: label || `Chapter ${number}`,
+        pages: 1,
+      });
+    }
+    match = pattern.exec(String(html || ""));
+  }
+  return chapters;
+}
+
+export function parseWeebPageUrls(html) {
+  const urls = [];
+  const pattern = /<img\b[^>]*\bsrc="(https:\/\/[^"]+)"[^>]*>/gi;
+  let match = pattern.exec(String(html || ""));
+  while (match) {
+    const src = match[1];
+    try {
+      const parsed = new URL(src);
+      const pageHost = WEEB_PAGE_HOSTS.has(parsed.hostname) && parsed.pathname.startsWith("/manga/");
+      const pageAlt = /alt="Page\s+\d+"/i.test(match[0]);
+      if (pageHost && pageAlt) urls.push(src);
+    } catch {
+      // Skip a tag whose src is not a URL.
+    }
+    match = pattern.exec(String(html || ""));
+  }
+  return readerPageUrls(urls);
+}
+
 export function getMangaPages(chapterId) {
   if (!chapterId) return Promise.resolve([]);
+  if (String(chapterId).startsWith("weebchapter:")) {
+    const id = String(chapterId).slice("weebchapter:".length);
+    if (!WEEB_ID.test(id)) return Promise.resolve([]);
+    return cached(`weeb:pages:${id}`, async () => {
+      const html = await fetchText(
+        weebUrl(`/chapters/${id}/images?is_prev=False&reading_style=long_strip`),
+        { timeout: 8000 }
+      );
+      return parseWeebPageUrls(html).map(weebPageUrl);
+    }, 8 * 60 * 1000);
+  }
   if (String(chapterId).startsWith("sanka:")) {
     const rest = String(chapterId).slice("sanka:".length);
     const splitAt = rest.indexOf(":");
@@ -1024,7 +1161,7 @@ export function getMangaPages(chapterId) {
         { timeout: 8000 }
       );
       const images = payload?.data?.images || payload?.images || [];
-      return images.map((item) => (typeof item === "string" ? item : item?.url)).filter(Boolean);
+      return readerPageUrls(images.map((item) => (typeof item === "string" ? item : item?.url)));
     }, 8 * 60 * 1000);
   }
   if (String(chapterId).startsWith("komikstation:")) {
@@ -1033,7 +1170,7 @@ export function getMangaPages(chapterId) {
       const payload = await fetchJson(`${SANKA}/comic/komikstation/chapter/${encodeURIComponent(slug)}`, {
         timeout: 8000,
       });
-      return Array.isArray(payload?.images) ? payload.images : [];
+      return readerPageUrls(Array.isArray(payload?.images) ? payload.images : []);
     }, 8 * 60 * 1000);
   }
   if (String(chapterId).startsWith("mangapill:")) {
@@ -1044,7 +1181,7 @@ export function getMangaPages(chapterId) {
         { timeout: 8000 }
       );
       const rows = Array.isArray(payload) ? payload : [];
-      return rows.map((row) => row.img).filter(Boolean);
+      return readerPageUrls(rows.map((row) => row.img));
     }, 8 * 60 * 1000);
   }
   return cached(`md:pages:${chapterId}`, async () => {
@@ -1054,7 +1191,7 @@ export function getMangaPages(chapterId) {
     const files = saver.length ? saver : chapter.data || [];
     const mode = saver.length ? "data-saver" : "data";
     if (!payload.baseUrl || !chapter.hash || !files.length) return [];
-    return files.map((file) => mangaDexPageUrl(`${payload.baseUrl}/${mode}/${chapter.hash}/${file}`));
+    return readerPageUrls(files.map((file) => mangaDexPageUrl(`${payload.baseUrl}/${mode}/${chapter.hash}/${file}`)));
   }, 8 * 60 * 1000);
 }
 
@@ -1522,34 +1659,6 @@ function readSankaComicMeta(source, payload) {
   };
 }
 
-async function sankaComicSearch(source, query) {
-  const payload = await fetchJson(
-    `${SANKA}/comic/${encodeURIComponent(source)}/search/${encodeURIComponent(query)}`,
-    { timeout: 8000 }
-  );
-  const rows = payload?.komikList || payload?.results || payload?.seriesList || [];
-  return rows
-    .map((row) => ({
-      title: cleanComicTitle(row.title),
-      slug: row.slug || row.manga_id || "",
-      image: row.image || row.cover || "",
-      rating: row.rating ? Number(String(row.rating).replace(/[^0-9.]/g, "")) : null,
-    }))
-    .filter((row) => row.title && row.slug && !row.slug.startsWith("?"));
-}
-
-async function sankaComicCatalog(source, query) {
-  const rows = await sankaComicSearch(source, query);
-  return rows.map((row) => ({
-    id: `sanka:${source}:${row.slug}`,
-    source: "sanka",
-    title: row.title,
-    image: row.image,
-    rating: Number.isFinite(row.rating) ? row.rating : null,
-    kind: "manga",
-  }));
-}
-
 async function loadSankaComic(source, slug) {
   let meta = { title: "", image: "", rating: null, description: "" };
   const payloads = [];
@@ -1563,11 +1672,6 @@ async function loadSankaComic(source, slug) {
     if (!sankaChapterPageInfo(payload).hasNext) break;
   }
   return { ...meta, chapters: mergeSankaChapterPages(source, payloads) };
-}
-
-async function loadSankaChapters(source, slug) {
-  const comic = await loadSankaComic(source, slug);
-  return comic.chapters;
 }
 
 async function sankaComicDetail(raw) {
@@ -1595,45 +1699,89 @@ async function sankaComicDetail(raw) {
   return detail;
 }
 
-function sankaShouldLead(sankaChapters, dexChapters) {
-  if (!sankaChapters.length) return false;
-  if (!dexChapters.length) return true;
-  return highestChapterNumber(sankaChapters) >= highestChapterNumber(dexChapters);
+function weebSearchPath(query) {
+  const params = new URLSearchParams();
+  params.set("author", "");
+  params.set("text", query);
+  params.set("sort", "Best Match");
+  params.set("order", "Descending");
+  params.set("official", "Any");
+  params.set("anime", "Any");
+  params.set("adult", "False");
+  params.set("display_mode", "Full Display");
+  return `/search/data?${params.toString()}`;
 }
 
-async function sankaComicReader(title) {
-  for (const source of SANKA_COMIC_SOURCES) {
-    try {
-      const found = await sankaComicSearch(source, title);
-      const hit = found.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
-      if (!hit) continue;
-      const chapters = (await loadSankaComic(source, hit.slug)).chapters;
-      if (!chapters.length) continue;
-      return {
-        id: "sanka",
-        label: "Sanka",
-        chapters,
-        notice: hostedChapterNotice(title, chapters, "Sanka") || "Chapter pages come from Sanka.",
-      };
-    } catch {
-      // The next Sanka comic source can still have this title.
-    }
-  }
-  return null;
+async function weebCatalog(query) {
+  const html = await fetchText(weebUrl(weebSearchPath(query)), { timeout: 8000 });
+  return parseWeebSearch(html).map((row) => ({
+    id: `weebcentral:${row.id}`,
+    source: "weebcentral",
+    title: row.title,
+    image: row.image,
+    rating: null,
+    kind: "manga",
+  }));
+}
+
+async function weebDetail(seriesId) {
+  if (!WEEB_ID.test(seriesId)) throw new Error("Unknown Weeb Central comic");
+  const [page, list] = await Promise.all([
+    fetchText(weebUrl(`/series/${seriesId}`), { timeout: 8000 }),
+    fetchText(weebUrl(`/series/${seriesId}/full-chapter-list`), { timeout: 12000 }),
+  ]);
+  const title = parseWeebTitle(page);
+  const chapters = parseWeebChapters(list);
+  if (!chapters.length) throw new Error("Weeb Central has no chapters");
+  const detail = {
+    id: `weebcentral:${seriesId}`,
+    source: "weebcentral",
+    title: title || seriesId,
+    image: `https://temp.compsci88.com/cover/normal/${seriesId}.webp`,
+    rating: null,
+    description: "",
+    episodes: [],
+    chapters,
+    notice: hostedChapterNotice(title, chapters, "Weeb Central") || "English chapter pages come from Weeb Central.",
+    kind: "manga",
+  };
+  remember([detail]);
+  return detail;
+}
+
+async function weebReader(title) {
+  const html = await fetchText(weebUrl(weebSearchPath(title)), { timeout: 8000 });
+  const hit = bestTitleMatch(title, parseWeebSearch(html), (row) => row.title);
+  if (!hit) return null;
+  const list = await fetchText(weebUrl(`/series/${hit.id}/full-chapter-list`), { timeout: 12000 });
+  const chapters = parseWeebChapters(list);
+  if (!chapters.length) return null;
+  return {
+    id: "weebcentral",
+    label: "Weeb Central",
+    chapters,
+    notice: hostedChapterNotice(title, chapters, "Weeb Central") || "English chapter pages come from Weeb Central.",
+  };
+}
+
+async function mangadexEnglishChapters(mangaId) {
+  return cached(`md:en-chapters:${mangaId}`, async () => {
+    const rows = await loadMangaDexFeed(mangaId, "en");
+    return chapterEntries(hostedFeedRows(rows).filter((chapter) => chapter.attributes?.translatedLanguage === "en"));
+  }, 10 * 60 * 1000);
 }
 
 async function mangadexReader(title) {
   const list = await mangadexList(1, title);
   const hit = bestTitleMatch(title, list.items, (item) => item.title);
   if (!hit) return null;
-  const chapters = (await mangadexChapters(parseCatalogId(hit.id).raw))
-    .filter((chapter) => chapter.pages > 0);
+  const chapters = await mangadexEnglishChapters(parseCatalogId(hit.id).raw);
   if (!chapters.length) return null;
   return {
     id: "mangadex",
     label: "MangaDex",
     chapters,
-    notice: hostedChapterNotice(title, chapters),
+    notice: hostedChapterNotice(title, chapters, "MangaDex") || "English chapter pages come from MangaDex.",
   };
 }
 
@@ -1657,26 +1805,19 @@ async function komikstationReader(title) {
 export function loadMangaSources(title) {
   const key = `manga-sources:${compactTitle(title)}`;
   return cached(key, async () => {
-    const [sanka, dex] = await Promise.all([
-      sankaComicReader(title).catch(() => null),
+    const [english, dex] = await Promise.all([
+      weebReader(title).catch(() => null),
       mangadexReader(title).catch(() => null),
     ]);
     const sources = [];
-    const sankaChapters = sanka?.chapters || [];
-    const dexChapters = dex?.chapters || [];
-    if (sankaShouldLead(sankaChapters, dexChapters)) {
-      sources.push(sanka);
-      if (dexChapters.length) sources.push(dex);
-    } else if (dexChapters.length) {
-      sources.push(dex);
-      if (sankaChapters.length) sources.push(sanka);
-    }
+    if (english?.chapters?.length) sources.push(english);
+    if (dex?.chapters?.length) sources.push(dex);
     if (!sources.length) {
       try {
         const station = await komikstationReader(title);
         if (station?.chapters?.length) sources.push(station);
       } catch {
-        // Neither page source matched this title.
+        // Komikstation still covers a manhwa when no English scan matched.
       }
     }
     return sources;
@@ -1863,17 +2004,14 @@ async function searchMangaFresh(query, page = 1) {
   ];
   if (page === 1) {
     jobs.unshift(
-      sankaComicCatalog("komikindo", query)
-        .then((items) => ({ source: "sanka", priority: 0, items }))
-        .catch(() => ({ source: "sanka", priority: 0, items: [] })),
-      sankaComicCatalog("bacakomik", query)
-        .then((items) => ({ source: "sanka", priority: 1, items }))
-        .catch(() => ({ source: "sanka", priority: 1, items: [] })),
+      weebCatalog(query)
+        .then((items) => ({ source: "weebcentral", priority: 1, items }))
+        .catch(() => ({ source: "weebcentral", priority: 1, items: [] })),
     );
     jobs.push(
       kiryuuSearch(query)
-        .then((result) => ({ source: "kiryuu", priority: 9, items: result.items }))
-        .catch(() => ({ source: "kiryuu", priority: 9, items: [] })),
+        .then((result) => ({ source: "kiryuu", priority: 0, items: result.items }))
+        .catch(() => ({ source: "kiryuu", priority: 0, items: [] })),
     );
   }
   const lists = await Promise.all(jobs);
@@ -1903,6 +2041,7 @@ async function getMangaDetailFresh(catalogId) {
     anilist: (raw) => anilistDetail(raw, "MANGA"),
     kiryuu: (raw) => kiryuuDetail(raw),
     komikstation: (raw) => komikstationDetail(raw),
+    weebcentral: (raw) => weebDetail(raw),
     sanka: (raw) => sankaComicDetail(raw),
     nozu: (raw) => nozuMangaDetail(raw),
   };
