@@ -904,11 +904,48 @@ body {
   cursor: not-allowed;
 }
 
+.reader-strip {
+  width: min(920px, 100%);
+  margin: 0.85rem auto 0;
+  display: flex;
+  flex-direction: column;
+  background: #050506;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.reader-strip .reader-page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+}
+
+.reader-page--broken {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.6rem;
+  color: #fecdd3;
+}
+
+.reader-page--broken p {
+  margin: 0;
+}
+
+.reader-toolbar--end {
+  justify-content: center;
+  margin: 0;
+  padding: 1rem;
+  background: #0c0c10;
+}
+
 .reader-page {
   display: block;
-  width: min(720px, 100%);
+  width: min(920px, 100%);
   height: auto;
-  margin-top: 0.4rem;
+  margin: 0.4rem auto 0;
   border-radius: 8px;
   background: #000;
 }

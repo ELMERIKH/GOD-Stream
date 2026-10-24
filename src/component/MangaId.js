@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./movie.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -29,11 +29,11 @@ function MangaId() {
   const [error, setError] = useState("");
   const [chapterIndex, setChapterIndex] = useState(0);
   const [pages, setPages] = useState([]);
-  const [pageIndex, setPageIndex] = useState(0);
   const [pagesLoading, setPagesLoading] = useState(false);
   const [pageNote, setPageNote] = useState("");
-  const [pageFailed, setPageFailed] = useState(false);
-  const [pageTry, setPageTry] = useState(0);
+  const [failedPages, setFailedPages] = useState({});
+  const [pageTries, setPageTries] = useState({});
+  const skipChapterScroll = useRef(true);
   const [extraSources, setExtraSources] = useState([]);
   const [activeSource, setActiveSource] = useState("");
   const [retryToken, setRetryToken] = useState(0);
@@ -105,7 +105,6 @@ function MangaId() {
     if (!manga) return undefined;
     if (!chapter?.id || !chapter.pages) {
       setPages([]);
-      setPageIndex(0);
       setPagesLoading(false);
       setPageNote(
         chapter
@@ -122,7 +121,7 @@ function MangaId() {
       .then((nextPages) => {
         if (cancelled) return;
         setPages(nextPages);
-        setPageIndex(0);
+        setFailedPages({});
         setPageNote(nextPages.length ? "" : "Pages could not be loaded for this chapter.");
       })
       .catch(() => {
@@ -139,17 +138,13 @@ function MangaId() {
   }, [manga, chapter, chapterIndex]);
 
   useEffect(() => {
-    setPageFailed(false);
-  }, [pages, pageIndex]);
-
-  useEffect(() => {
-    const upcoming = pages[pageIndex + 1];
-    if (!upcoming) return undefined;
-    const img = new Image();
-    img.referrerPolicy = "no-referrer";
-    img.src = upcoming;
+    if (skipChapterScroll.current) {
+      skipChapterScroll.current = false;
+      return undefined;
+    }
+    document.getElementById("reader-strip")?.scrollIntoView({ block: "start" });
     return undefined;
-  }, [pages, pageIndex]);
+  }, [chapterIndex, activeSource]);
 
   if (loading) {
     return <CatalogSkeleton variant="watch" label="Opening the reader" />;
@@ -188,7 +183,6 @@ function MangaId() {
               onClick={() => {
                 setActiveSource(source.id);
                 setChapterIndex(0);
-                setPageIndex(0);
               }}
             >
               {source.label}
@@ -216,19 +210,19 @@ function MangaId() {
           <div className="reader-toolbar">
             <button
               type="button"
-              disabled={pageIndex === 0 || pageCount === 0}
-              onClick={() => setPageIndex((value) => Math.max(0, value - 1))}
+              disabled={chapterIndex === 0}
+              onClick={() => setChapterIndex((value) => Math.max(0, value - 1))}
             >
-              Prev
+              Previous chapter
             </button>
             <button
               type="button"
-              disabled={pageCount === 0 || pageIndex >= pageCount - 1}
-              onClick={() => setPageIndex((value) => Math.min(pageCount - 1, value + 1))}
+              disabled={!chapters.length || chapterIndex >= chapters.length - 1}
+              onClick={() => setChapterIndex((value) => Math.min(chapters.length - 1, value + 1))}
             >
-              Next
+              Next chapter
             </button>
-            <span>{pageCount ? `Page ${pageIndex + 1} of ${pageCount}` : "No pages"}</span>
+            <span>{pageCount ? `${pageCount} pages · scroll` : "No pages"}</span>
           </div>
           {pageNote ? <p className="catalog-note">{pageNote}</p> : null}
           {pagesLoading ? (
@@ -236,32 +230,56 @@ function MangaId() {
               <LoaderMark />
               <p>Loading pages</p>
             </div>
-          ) : pageFailed ? (
-            <div className="reader-fallback" role="alert">
-              <p>This page did not load.</p>
-              <div className="reader-toolbar">
-                <button type="button" onClick={() => { setPageFailed(false); setPageTry((value) => value + 1); }}>
-                  Retry page
+          ) : pageCount > 0 ? (
+            <div className="reader-strip" id="reader-strip">
+              {pages.map((src, index) => (
+                failedPages[index] ? (
+                  <div key={`${src}:broken`} className="reader-page reader-page--broken" role="alert">
+                    <p>Page {index + 1} did not load.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFailedPages((current) => {
+                          const next = { ...current };
+                          delete next[index];
+                          return next;
+                        });
+                        setPageTries((current) => ({ ...current, [index]: (current[index] || 0) + 1 }));
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <img
+                    key={`${src}:${pageTries[index] || 0}`}
+                    className="reader-page"
+                    src={src}
+                    alt={`${manga.title} page ${index + 1}`}
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    loading={index < 2 ? "eager" : "lazy"}
+                    onError={() => setFailedPages((current) => ({ ...current, [index]: true }))}
+                  />
+                )
+              ))}
+              <div className="reader-toolbar reader-toolbar--end">
+                <button
+                  type="button"
+                  disabled={chapterIndex === 0}
+                  onClick={() => setChapterIndex((value) => Math.max(0, value - 1))}
+                >
+                  Previous chapter
                 </button>
                 <button
                   type="button"
-                  disabled={pageIndex >= pageCount - 1}
-                  onClick={() => setPageIndex((value) => Math.min(pageCount - 1, value + 1))}
+                  disabled={chapterIndex >= chapters.length - 1}
+                  onClick={() => setChapterIndex((value) => Math.min(chapters.length - 1, value + 1))}
                 >
-                  Next page
+                  Next chapter
                 </button>
               </div>
             </div>
-          ) : pages[pageIndex] ? (
-            <img
-              key={`${pages[pageIndex]}:${pageTry}`}
-              className="reader-page"
-              src={pages[pageIndex]}
-              alt={`${manga.title} page ${pageIndex + 1}`}
-              referrerPolicy="no-referrer"
-              decoding="async"
-              onError={() => setPageFailed(true)}
-            />
           ) : null}
       </div>
       <section className="watch-meta">
