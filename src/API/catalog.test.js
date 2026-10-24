@@ -15,6 +15,7 @@ import {
   searchManga,
   sankaChapterPageInfo,
 } from "./catalog";
+import { buildReaderSources } from "../component/readerSources";
 
 function jsonResponse(body, status = 200) {
   return Promise.resolve({
@@ -834,6 +835,46 @@ test("Sanka comic chapter pages keep chapter 1 and the latest chapter", () => {
   });
   expect(shinigami[0].id).toBe("sanka:shinigami:abc");
   expect(shinigami[0].number).toBe("135");
+});
+
+test("an AniList manga id with a Weeb Central match does not stay on an empty AniList chapter list", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("graphql.anilist.co")) {
+      return jsonResponse({
+        data: {
+          Media: {
+            id: 169355,
+            title: { romaji: "Kagurabachi", english: "Kagurabachi" },
+            description: "A sword story",
+            coverImage: { extraLarge: "https://s4.anilist.co/kagura.jpg" },
+            averageScore: 79,
+            chapters: 80,
+            status: "RELEASING",
+          },
+        },
+      });
+    }
+    if (href.includes("weebcentral.com/search/data")) {
+      return textResponse('<span data-tip="Kagurabachi"><a href="https://weebcentral.com/series/01J76XYGGM22WZP7T4TKA4ZFAF/Kagurabachi">Kagurabachi</a></span>');
+    }
+    if (href.includes("/full-chapter-list")) {
+      return textResponse(`
+        <a href="/chapters/01M57RRV54GD4MNM4D2V8WPWR4"><span class="">Chapter 135</span></a>
+        <a href="/chapters/01JC54EVFF69DZWNDNRHD4B80K"><span class="">Chapter 1</span></a>
+      `);
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const detail = await getMangaDetail("anilist:169355");
+  expect(detail.chapters.some((chapter) => String(chapter.id || "").startsWith("weebchapter:"))).toBe(true);
+  expect(detail.chapters.some((chapter) => !chapter.id || !chapter.pages)).toBe(false);
+  expect(detail.notice).toMatch(/Weeb Central/);
+  expect(detail.notice).not.toMatch(/not chapter pages/);
+  const sources = buildReaderSources(detail, []);
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral"]);
+  expect(sources[0].chapters.map((chapter) => chapter.number)).toEqual(["135", "1"]);
 });
 
 test("the default manga reader is the English source, not Komikindo", async () => {

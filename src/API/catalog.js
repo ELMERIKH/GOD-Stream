@@ -1040,7 +1040,7 @@ export function loadEpisodeEmbed(episodeId) {
 
 const WEEB = "https://weebcentral.com";
 const WEEB_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const WEEB_PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "official.lowee.us"]);
+const WEEB_PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "scans.lastation.us", "official.lowee.us"]);
 
 function weebUrl(pathAndQuery) {
   if (process.env.NODE_ENV !== "test" && typeof window !== "undefined") {
@@ -1791,6 +1791,9 @@ async function mangadexReader(title) {
   };
 }
 
+// Komikstation titles from Sanka are Indonesian ("Martial Peak Bahasa Indonesia").
+// kiryuu.io is lang=id and has no /en/ feed. A lang=en query does not change that.
+// English manhwa pages come from Weeb Central when that series has page images.
 async function komikstationReader(title) {
   const found = await kiryuuSearch(title);
   const hit = found.items.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
@@ -2039,6 +2042,31 @@ function withBareMangaId(catalogId) {
   return parsed;
 }
 
+function hasReadableChapters(chapters) {
+  return (chapters || []).some((chapter) => {
+    const id = String(chapter?.id || "");
+    return Boolean(chapter?.pages) && id && !id.startsWith("mangapill:");
+  });
+}
+
+async function withReadableChapters(detail) {
+  if (!detail?.title) return detail;
+  const placeholder = ["anilist", "kitsu", "nozu"].includes(detail.source);
+  if (!placeholder || hasReadableChapters(detail.chapters)) return detail;
+  try {
+    const sources = await loadMangaSources(detail.title);
+    const readable = (sources || []).find((source) => hasReadableChapters(source.chapters));
+    if (!readable) return detail;
+    return {
+      ...detail,
+      chapters: readable.chapters,
+      notice: readable.notice || detail.notice,
+    };
+  } catch {
+    return detail;
+  }
+}
+
 async function getMangaDetailFresh(catalogId) {
   const parsed = withBareMangaId(catalogId);
   const loaders = {
@@ -2053,10 +2081,10 @@ async function getMangaDetailFresh(catalogId) {
   };
   try {
     if (!loaders[parsed.source]) throw new Error("Unknown manga source");
-    return await loaders[parsed.source](parsed.raw);
+    return await withReadableChapters(await loaders[parsed.source](parsed.raw));
   } catch (error) {
     const fallback = await fallbackDetail(parsed, recall(parsed.id), searchManga, loaders);
-    if (fallback) return fallback;
+    if (fallback) return withReadableChapters(fallback);
     throw error;
   }
 }

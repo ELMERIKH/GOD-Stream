@@ -6,7 +6,7 @@ const API_PREFIX = "/api/weebcentral";
 const IMAGE_PATH = "/api/weeb-image";
 const HOST = "weebcentral.com";
 const SERIES_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "official.lowee.us"]);
+const PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "scans.lastation.us", "official.lowee.us"]);
 
 function isWeebApiPath(pathname) {
   return pathname === API_PREFIX || pathname.startsWith(`${API_PREFIX}/`);

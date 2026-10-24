@@ -94,6 +94,7 @@ test("MangaDex proxy allowlist accepts API reads and at-home images only", () =>
   assert.equal(weebUpstream("/api/weebcentral/series/../secret", ""), null);
   assert.equal(weebUpstream("/api/weebcentral/series/01I00000000000000000000000/full-chapter-list", ""), null);
   assert.ok(weebImageTarget("https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png"));
+  assert.ok(weebImageTarget("https://scans.lastation.us/manga/Martial-Peak/3844-001.png"));
   assert.ok(weebImageTarget("https://official.lowee.us/manga/Fairy-Tail/0545-001.png"));
   assert.equal(weebImageTarget("https://mangapill.com/manga/a.jpg"), null);
   assert.equal(weebImageTarget("https://cdn.readdetectiveconan.com/manga/a.jpg"), null);

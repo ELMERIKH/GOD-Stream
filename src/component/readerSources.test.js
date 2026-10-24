@@ -69,10 +69,12 @@ test("a Kiryuu title that already has Komikstation pages stays on that source", 
     {
       id: "weebcentral",
       label: "Weeb Central",
+      notice: "English chapter pages come from Weeb Central.",
       chapters: [{ id: "weebchapter:01J76XY7E5E1C5Y9J0M2FCVQ8H", number: "10", title: "Chapter 10", pages: 1 }],
     },
   ]);
-  expect(withSanka.map((source) => source.id)).toEqual(["komikstation", "mangadex", "weebcentral"]);
+  expect(withSanka.map((source) => source.id)).toEqual(["weebcentral", "komikstation", "mangadex"]);
+  expect(visibleReaderNotice(manga, withSanka[0])).toBe("English chapter pages come from Weeb Central.");
   expect(buildReaderSources(manga, [])).toHaveLength(1);
 });
 

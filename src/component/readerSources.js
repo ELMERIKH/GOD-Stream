@@ -59,12 +59,12 @@ export function buildReaderSources(manga, extraSources) {
     });
   });
   const english = sources.find((source) => source.id === "weebcentral");
-  if (sources[0]?.id === "komikstation") {
-    return sources.filter((source) => !indonesianScan(source));
-  }
   if (english) {
     const rest = sources.filter((source) => source !== english && !indonesianScan(source) && !nonEnglishDex(source));
     return [english, ...rest];
+  }
+  if (sources[0]?.id === "komikstation") {
+    return sources.filter((source) => !indonesianScan(source));
   }
   return sources;
 }
@@ -93,6 +93,7 @@ export function visibleReaderNotice(manga, source) {
   const placeholder = /not chapter pages|no page images|another source matches|page images come from mangadex when/i.test(fromCatalog);
   const loadFailure = /did not respond/i.test(fromCatalog);
   if (imageSource && (placeholder || (fromSource && loadFailure))) return fromSource;
+  if (imageSource && fromSource && source?.id === "weebcentral" && /komikstation/i.test(fromCatalog)) return fromSource;
   if (fromSource && fromCatalog && fromSource !== fromCatalog) return `${fromSource} ${fromCatalog}`;
   return fromSource || fromCatalog;
 }

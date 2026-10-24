@@ -91,7 +91,9 @@ function MangaId() {
     ? (chapters.length ? newestIndex : 0)
     : (chapters[chapterIndex] ? chapterIndex : 0);
   const chapter = chapters[safeIndex] || null;
-  const readerNotice = visibleReaderNotice(manga, currentSource);
+  const readerNotice = !sourcesReady && !currentSource
+    ? ""
+    : visibleReaderNotice(manga, currentSource);
   const loadNotice = String(manga?.loadNotice || "").trim();
   const showLoadNotice = Boolean(loadNotice && loadNotice !== readerNotice && !String(readerNotice || "").includes(loadNotice));
 
@@ -112,9 +114,7 @@ function MangaId() {
       setPageNote(
         !sourcesReady
           ? "Looking for a reader with page images."
-          : (chapter
-            ? "This chapter has no page images."
-            : manga.notice || "No chapters are available.")
+          : (chapter ? "This chapter has no page images." : "")
       );
       return undefined;
     }
@@ -191,7 +191,7 @@ function MangaId() {
   }
 
   const pageCount = pages.length;
-  const railItems = chapters.length ? chapters : (manga.chapters || []).filter((entry) => !String(entry.id || "").startsWith("mangapill:"));
+  const railItems = (chapters.length ? chapters : (manga.chapters || [])).filter(isImageChapter);
 
   return (
     <div className="watch-page">
