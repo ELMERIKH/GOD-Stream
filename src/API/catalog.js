@@ -1449,21 +1449,22 @@ async function enrichAnime(detail) {
   };
 }
 
+// MangaDex, AniList (isAdult: false), Kitsu, and Nozu are Japanese manga catalogs.
+// Kiryuu's home feed is mostly manhwa, so it stays later for Komikstation matches.
 async function listMangaFresh(page = 1) {
   return firstList([
-    () => kiryuuList(page),
-    () => nozuCollection("/popular?type=manga", "manga"),
     () => mangadexList(page),
-    () => kitsuCollection(kitsuListPath("manga", "popular", page), "manga"),
     () => anilistPage({ type: "MANGA", page, sort: "POPULARITY_DESC" }),
+    () => kitsuCollection(kitsuListPath("manga", "popular", page), "manga"),
+    () => nozuCollection("/popular?type=manga", "manga"),
+    () => kiryuuList(page),
   ]);
 }
 
 async function searchMangaFresh(query, page = 1) {
   return firstList([
-    () => kiryuuSearch(query),
-    () => nozuCollection(`/search?type=manga&q=${encodeURIComponent(query)}`, "manga"),
     () => mangadexList(page, query),
+    () => anilistPage({ type: "MANGA", page, sort: "SEARCH_MATCH", search: query }),
     () => {
       const params = new URLSearchParams();
       params.set("filter[text]", query);
@@ -1471,7 +1472,8 @@ async function searchMangaFresh(query, page = 1) {
       params.set("page[offset]", String((page - 1) * 20));
       return kitsuCollection(`/manga?${params.toString()}`, "manga");
     },
-    () => anilistPage({ type: "MANGA", page, sort: "SEARCH_MATCH", search: query }),
+    () => nozuCollection(`/search?type=manga&q=${encodeURIComponent(query)}`, "manga"),
+    () => kiryuuSearch(query),
   ]);
 }
 

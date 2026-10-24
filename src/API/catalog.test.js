@@ -7,6 +7,7 @@ import {
   listManga,
   loadEpisodeEmbed,
   loadEpisodeServers,
+  searchManga,
 } from "./catalog";
 
 function jsonResponse(body, status = 200) {
@@ -23,9 +24,25 @@ beforeEach(() => {
   global.fetch = jest.fn();
 });
 
-test("listManga keeps Kiryuu when it returns covers", async () => {
+test("listManga uses MangaDex when it returns items and does not call Kiryuu", async () => {
   global.fetch.mockImplementation((url) => {
-    if (String(url).includes("/comic/kiryuu/home")) {
+    const href = String(url);
+    if (href.includes("api.mangadex.org")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [
+          {
+            id: "one-piece-id",
+            attributes: { title: { en: "One Piece" }, description: {} },
+            relationships: [
+              { type: "cover_art", attributes: { fileName: "cover.jpg" } },
+            ],
+          },
+        ],
+      });
+    }
+    if (href.includes("/comic/kiryuu/home")) {
       return jsonResponse({
         trending: [
           {
@@ -37,16 +54,47 @@ test("listManga keeps Kiryuu when it returns covers", async () => {
         ],
       });
     }
-    return Promise.reject(new Error(`unexpected ${url}`));
+    return Promise.reject(new Error(`unexpected ${href}`));
   });
 
   const result = await listManga(1);
-  expect(result.source).toBe("kiryuu");
-  expect(result.items[0].id).toBe("kiryuu:martial-peak");
+  expect(result.source).toBe("mangadex");
+  expect(result.items[0].id).toBe("mangadex:one-piece-id");
+  expect(result.items[0].title).toBe("One Piece");
+  const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+  expect(urls.some((url) => url.includes("api.mangadex.org"))).toBe(true);
+  expect(urls.some((url) => url.includes("/comic/kiryuu/home"))).toBe(false);
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
 
-test("listManga continues when Kiryuu is empty", async () => {
+test("searchManga uses MangaDex before Kiryuu", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("api.mangadex.org")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [
+          {
+            id: "berserk-id",
+            attributes: { title: { en: "Berserk" }, description: {} },
+            relationships: [],
+          },
+        ],
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const result = await searchManga("Berserk", 1);
+  expect(result.source).toBe("mangadex");
+  expect(result.items[0].title).toBe("Berserk");
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(String(global.fetch.mock.calls[0][0])).toContain("title=Berserk");
+  expect(String(global.fetch.mock.calls[0][0])).not.toContain("/comic/kiryuu/");
+});
+
+test("listManga continues when MangaDex fails", async () => {
   global.fetch.mockImplementation((url) => {
     const href = String(url);
     if (href.includes("/comic/kiryuu/home")) return jsonResponse({ trending: [] });
@@ -344,22 +392,33 @@ test("an earlier catalog source still wins when a later one answers first", asyn
   });
   global.fetch.mockImplementation((url) => {
     const href = String(url);
-    if (href.includes("/comic/kiryuu/home")) {
+    if (href.includes("api.mangadex.org")) {
       return gate.then(() => jsonResponse({
-        trending: [
+        result: "ok",
+        total: 1,
+        data: [
           {
-            slug: "martial-peak",
-            title: "Martial Peak",
-            imageSrc: "https://v7.kiryuu.to/cover.jpg",
-            rating: "8.5",
+            id: "dex-1",
+            attributes: { title: { en: "One Piece" }, description: {} },
+            relationships: [],
           },
         ],
       }));
     }
-    if (href.includes("nozu.me")) {
+    if (href.includes("graphql.anilist.co")) {
       return jsonResponse({
-        data: [{ slug: "other", title: "Other", cover_image: "https://cdn.example/cover.jpg" }],
-        meta: { current_page: 1, last_page: 1 },
+        data: {
+          Page: {
+            pageInfo: { hasNextPage: false },
+            media: [
+              {
+                id: 30013,
+                title: { romaji: "One Piece", english: "One Piece" },
+                coverImage: { large: "https://s4.anilist.co/op.jpg" },
+              },
+            ],
+          },
+        },
       });
     }
     return Promise.reject(new Error(`unexpected ${href}`));
@@ -370,13 +429,15 @@ test("an earlier catalog source still wins when a later one answers first", asyn
     await Promise.resolve();
     await Promise.resolve();
     await new Promise((resolve) => setTimeout(resolve, 800));
-    const urls = global.fetch.mock.calls.map((call) => String(call[0]));
-    expect(urls.some((url) => url.includes("/comic/kiryuu/home"))).toBe(true);
-    expect(urls.some((url) => url.includes("nozu.me"))).toBe(true);
+    const started = global.fetch.mock.calls.map((call) => String(call[0]));
+    expect(started.some((url) => url.includes("api.mangadex.org"))).toBe(true);
+    expect(started.some((url) => url.includes("graphql.anilist.co"))).toBe(true);
     release();
     const result = await pending;
-    expect(result.source).toBe("kiryuu");
-    expect(result.items[0].id).toBe("kiryuu:martial-peak");
+    const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+    expect(result.source).toBe("mangadex");
+    expect(result.items[0].id).toBe("mangadex:dex-1");
+    expect(urls.some((url) => url.includes("/comic/kiryuu/home"))).toBe(false);
   } finally {
     release();
   }
