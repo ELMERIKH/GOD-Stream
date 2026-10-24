@@ -71,7 +71,7 @@ test("listManga uses MangaDex when it returns items and does not call Kiryuu", a
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
 
-test("searchManga uses MangaDex before Kiryuu", async () => {
+test("searchManga keeps a MangaDex match when the other catalogs fail", async () => {
   global.fetch.mockImplementation((url) => {
     const href = String(url);
     if (href.includes("api.mangadex.org")) {
@@ -92,10 +92,74 @@ test("searchManga uses MangaDex before Kiryuu", async () => {
 
   const result = await searchManga("Berserk", 1);
   expect(result.source).toBe("mangadex");
-  expect(result.items[0].title).toBe("Berserk");
-  expect(global.fetch).toHaveBeenCalledTimes(1);
-  expect(String(global.fetch.mock.calls[0][0])).toContain("title=Berserk");
-  expect(String(global.fetch.mock.calls[0][0])).not.toContain("/comic/kiryuu/");
+  expect(result.items.map((item) => item.title)).toEqual(["Berserk"]);
+  expect(result.items.some((item) => item.source === "kiryuu")).toBe(false);
+  const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+  expect(urls.some((url) => url.includes("title=Berserk"))).toBe(true);
+  expect(urls.some((url) => url.includes("/comic/komikindo/search/"))).toBe(true);
+});
+
+test("Fairy Tail search returns a Sanka match and ignores unrelated Kiryuu hits", async () => {
+  global.fetch.mockImplementation((url) => {
+    const href = String(url);
+    if (href.includes("/comic/komikindo/search/")) {
+      return jsonResponse({
+        komikList: [
+          { title: "Fairy Tail", slug: "231744-fairy-tail", image: "https://komikindo.ch/fairy.jpg", rating: "8" },
+          { title: "Mashima HERO'S", slug: "mashima-heros", image: "https://komikindo.ch/hero.jpg" },
+        ],
+      });
+    }
+    if (href.includes("/comic/bacakomik/search/")) {
+      return jsonResponse({
+        komikList: [{ title: "Fairy Tail", slug: "fairy-tail", image: "https://bacakomik.example/fairy.jpg" }],
+      });
+    }
+    if (href.includes("api.mangadex.org")) {
+      return jsonResponse({
+        result: "ok",
+        total: 1,
+        data: [{
+          id: "ft",
+          attributes: { title: { en: "FAIRY TAIL" }, description: {} },
+          relationships: [],
+        }],
+      });
+    }
+    if (href.includes("graphql.anilist.co")) {
+      return jsonResponse({
+        data: {
+          Page: {
+            pageInfo: { hasNextPage: false },
+            media: [{
+              id: 670,
+              title: { romaji: "Fairy Tail", english: "Fairy Tail" },
+              coverImage: { large: "https://s4.anilist.co/ft.jpg" },
+            }],
+          },
+        },
+      });
+    }
+    if (href.includes("/comic/kiryuu/search/")) {
+      return jsonResponse({
+        seriesList: [
+          { title: "Martial Peak", slug: "martial-peak", image: "https://kiryuu.example/mp.jpg", rating: "7.6" },
+          { title: "Solo Leveling", slug: "solo-leveling" },
+        ],
+      });
+    }
+    return Promise.reject(new Error(`unexpected ${href}`));
+  });
+
+  const result = await searchManga("fairy tail", 1);
+  expect(result.items[0]).toMatchObject({
+    id: "sanka:komikindo:231744-fairy-tail",
+    source: "sanka",
+    title: "Fairy Tail",
+  });
+  expect(result.items.some((item) => item.source === "kiryuu")).toBe(false);
+  expect(result.items.some((item) => /martial peak|solo leveling|mashima/i.test(item.title))).toBe(false);
+  expect(result.items.filter((item) => item.title === "Fairy Tail")).toHaveLength(1);
 });
 
 test("listManga continues when MangaDex fails", async () => {

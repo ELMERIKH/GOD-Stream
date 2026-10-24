@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./movie.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -37,6 +37,7 @@ function Anime() {
   const [embedNote, setEmbedNote] = useState("");
   const [blockedServers, setBlockedServers] = useState([]);
   const [retryToken, setRetryToken] = useState(0);
+  const failedPlayers = useRef(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -76,8 +77,37 @@ function Anime() {
     [movie, episode?.number, episodes.length]
   );
 
+  function nextFreeEmbed(skipped) {
+    return embedOptions.find((option) => option.url && !skipped.has(option.id)) || null;
+  }
+
+  function playFreeEmbed(skipped) {
+    const next = nextFreeEmbed(skipped);
+    if (!next) {
+      setActiveServer("");
+      setEmbedUrl("");
+      setEmbedNote(embedOptions.length || servers.length ? "The player could not be loaded." : "");
+      return;
+    }
+    setActiveServer(next.id);
+    setEmbedUrl(next.url);
+    setEmbedNote("");
+  }
+
+  function advancePast(failedId) {
+    const skipped = failedPlayers.current;
+    if (failedId) skipped.add(failedId);
+    const nextServer = servers.find((server) => server.id && !skipped.has(server.id));
+    if (nextServer) {
+      chooseServer(nextServer);
+      return;
+    }
+    playFreeEmbed(skipped);
+  }
+
   useEffect(() => {
     if (!movie) return undefined;
+    failedPlayers.current = new Set();
     if (!episode?.episodeId) {
       setServers([]);
       setBlockedServers([]);
@@ -95,16 +125,7 @@ function Anime() {
     }
     let cancelled = false;
     const playFallback = () => {
-      const next = firstAnimeEmbed(embedOptions);
-      if (!next) {
-        setActiveServer("");
-        setEmbedUrl("");
-        setEmbedNote("");
-        return;
-      }
-      setActiveServer(next.id);
-      setEmbedUrl(next.url);
-      setEmbedNote("");
+      playFreeEmbed(failedPlayers.current);
     };
     setEmbedUrl("");
     setEmbedNote("Loading player");
@@ -150,27 +171,13 @@ function Anime() {
           setEmbedNote("");
           return;
         }
+        failedPlayers.current.add(server.id);
         setBlockedServers((current) => (current.includes(server.id) ? current : [...current, server.id]));
-        const next = firstAnimeEmbed(embedOptions);
-        if (next) {
-          setActiveServer(next.id);
-          setEmbedUrl(next.url);
-          setEmbedNote("");
-          return;
-        }
-        setEmbedUrl("");
-        setEmbedNote("");
+        playFreeEmbed(failedPlayers.current);
       })
       .catch(() => {
-        const next = firstAnimeEmbed(embedOptions);
-        if (next) {
-          setActiveServer(next.id);
-          setEmbedUrl(next.url);
-          setEmbedNote("");
-          return;
-        }
-        setEmbedUrl("");
-        setEmbedNote("");
+        failedPlayers.current.add(server.id);
+        playFreeEmbed(failedPlayers.current);
       });
   }
 
@@ -206,15 +213,8 @@ function Anime() {
     );
   }
 
-  const seenSites = new Set();
-  const watchLinks = (movie.watchLinks || []).filter((link) => {
-    const key = String(link.label || link.url || "").trim().toLowerCase();
-    if (!key || seenSites.has(key)) return false;
-    seenSites.add(key);
-    return true;
-  });
   const loadingPlayer = embedNote === "Loading player";
-  const hasOffers = Boolean(servers.length || embedOptions.length || movie.preview?.embed || watchLinks.length || episode?.url);
+  const hasOffers = Boolean(servers.length || embedOptions.length || movie.preview?.embed);
 
   const sourceButtons = (
     <>
@@ -244,19 +244,9 @@ function Anime() {
         </button>
       ))}
       {movie.preview?.embed ? (
-        <button type="button" title={movie.preview.label || "Trailer"} className={activeServer === "trailer" ? "is-active" : ""} onClick={playTrailer}>
-          {movie.preview.label || "Trailer"}
+        <button type="button" title={movie.preview.name || movie.preview.label || "Trailer"} className={activeServer === "trailer" ? "is-active" : ""} onClick={playTrailer}>
+          Trailer
         </button>
-      ) : null}
-      {watchLinks.map((link) => (
-        <a key={link.url} className="source-link" title={link.label} href={link.url} target="_blank" rel="noopener noreferrer">
-          {link.label}
-        </a>
-      ))}
-      {!embedUrl && episode?.url && !watchLinks.some((link) => link.url === episode.url) ? (
-        <a className="source-link" href={episode.url} target="_blank" rel="noopener noreferrer">
-          Watch {episode.site ? `on ${episode.site}` : "episode"}
-        </a>
       ) : null}
     </>
   );
@@ -275,6 +265,7 @@ function Anime() {
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 allowFullScreen
                 referrerPolicy="origin"
+                onError={() => advancePast(activeServer)}
               />
             </div>
           ) : (

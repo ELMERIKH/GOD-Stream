@@ -49,6 +49,14 @@ export function animeEmbedOptions({ malId, anilistId, episode } = {}) {
   return hosts.filter((host) => host.url);
 }
 
+const PAID_STORE = /crunchyroll|funimation|netflix|hulu|disney|amazon|prime\s*video|primevideo|bilibili|hidive|iqiyi|iq\.com|\biq\b|youku|viki|apple\s*tv|tv\.apple|hbo|hbomax|max\.com|paramount|peacock|aniplus|ani-?one|wetv|hoopla|youtube/i;
+
+export function isPaidStoreLink(link) {
+  const label = String(link?.label || link?.site || "");
+  const url = String(link?.url || "");
+  return PAID_STORE.test(`${label} ${url}`);
+}
+
 export function firstAnimeEmbed(options, preferredId = "") {
   const list = Array.isArray(options) ? options : [];
   const preferred = list.find((host) => host.id === preferredId && host.url);

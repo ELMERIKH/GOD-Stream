@@ -22,7 +22,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v11";
+const HTTP_KEY = "streamgod.http.v12";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -128,6 +128,45 @@ function bestTitleMatch(title, rows, readTitle) {
     }
   });
   return bestScore >= 80 ? best : null;
+}
+
+export function searchMatchScore(query, title) {
+  const rank = titleRank(query, title);
+  if (rank) return rank;
+  const wanted = compactTitle(query);
+  const found = compactTitle(title);
+  if (!wanted || !found || Math.min(wanted.length, found.length) < 4) return 0;
+  if (found.includes(wanted) || wanted.includes(found)) return 80;
+  return 0;
+}
+
+export function rankMangaSearch(query, lists) {
+  const ranked = [];
+  (lists || []).forEach((list) => {
+    (list?.items || []).forEach((item) => {
+      const score = searchMatchScore(query, item?.title);
+      if (score < 80) return;
+      ranked.push({
+        item,
+        score,
+        priority: Number.isFinite(list.priority) ? list.priority : 50,
+      });
+    });
+  });
+  ranked.sort((left, right) => (
+    right.score - left.score
+    || left.priority - right.priority
+    || String(left.item.title).localeCompare(String(right.item.title))
+  ));
+  const seen = new Set();
+  const items = [];
+  ranked.forEach((row) => {
+    const key = compactTitle(row.item.title);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    items.push(row.item);
+  });
+  return items;
 }
 
 function youtubeId(url) {
@@ -945,7 +984,8 @@ export function isPlayableEmbed(url) {
   } catch {
     return false;
   }
-  if (/desustream/i.test(host)) return false;
+  const hostAndUrl = `${host} ${value}`;
+  if (/desustream|crunchyroll|funimation|netflix|hulu|bilibili|hidive|disney|primevideo|iqiyi|wetv|hoopla|aniplus/i.test(hostAndUrl)) return false;
   if (/\/maintenance\/?/i.test(value)) return false;
   return true;
 }
@@ -1135,34 +1175,51 @@ function playableTitle(wanted, found) {
   return Boolean(left) && left === right;
 }
 
+async function lookupMalId(title) {
+  const found = await fetchJson(
+    `${SHIKIMORI}/animes?search=${encodeURIComponent(title)}&limit=8`,
+    { timeout: 3500 }
+  );
+  const rows = Array.isArray(found) ? found : [];
+  let best = null;
+  let bestScore = 0;
+  rows.forEach((item) => {
+    const score = titleRank(title, item.name);
+    const shorter = best && String(item.name || "").length < String(best.name || "").length;
+    if (score > bestScore || (score === bestScore && score >= 80 && shorter)) {
+      best = item;
+      bestScore = score;
+    }
+  });
+  return bestScore >= 80 ? best.id : null;
+}
+
 async function attachPreview(detail) {
-  if (!detail || detail.preview?.embed) return detail;
+  if (!detail) return detail;
   try {
     let malId = detail.malId;
-    if (!malId && detail.title) {
-      const found = await fetchJson(
-        `${SHIKIMORI}/animes?search=${encodeURIComponent(detail.title)}&limit=5`,
-        { timeout: 3500 }
-      );
-      const row = (Array.isArray(found) ? found : []).find((item) => playableTitle(detail.title, item.name));
-      malId = row?.id || null;
-    }
+    if (!malId && detail.title) malId = await lookupMalId(detail.title);
     if (!malId) return detail;
-    const videos = await fetchJson(`${SHIKIMORI}/animes/${malId}/videos`, { timeout: 3500 });
-    const rank = { pv: 0, op: 1, ed: 2, other: 3 };
-    const picked = (Array.isArray(videos) ? videos : [])
-      .filter((video) => video.hosting === "youtube" && youtubeId(video.player_url || video.url))
-      .sort((left, right) => (rank[left.kind] ?? 9) - (rank[right.kind] ?? 9))[0];
-    if (!picked) return detail;
-    const kindLabel = { pv: "Trailer", op: "Opening", ed: "Ending", other: "Preview" }[picked.kind] || "Preview";
-    return {
-      ...detail,
-      malId,
-      preview: {
-        label: picked.name ? `${kindLabel}: ${picked.name}` : kindLabel,
-        embed: youtubeEmbed(youtubeId(picked.player_url || picked.url)),
-      },
-    };
+    if (detail.preview?.embed) return malId === detail.malId ? detail : { ...detail, malId };
+    let preview = detail.preview || null;
+    try {
+      const videos = await fetchJson(`${SHIKIMORI}/animes/${malId}/videos`, { timeout: 3500 });
+      const rank = { pv: 0, op: 1, ed: 2, other: 3 };
+      const picked = (Array.isArray(videos) ? videos : [])
+        .filter((video) => video.hosting === "youtube" && youtubeId(video.player_url || video.url))
+        .sort((left, right) => (rank[left.kind] ?? 9) - (rank[right.kind] ?? 9))[0];
+      if (picked) {
+        const kindLabel = { pv: "Trailer", op: "Opening", ed: "Ending", other: "Preview" }[picked.kind] || "Preview";
+        preview = {
+          label: "Trailer",
+          embed: youtubeEmbed(youtubeId(picked.player_url || picked.url)),
+          name: picked.name ? `${kindLabel}: ${picked.name}` : kindLabel,
+        };
+      }
+    } catch {
+      // A missing trailer still leaves the MAL id for the free embeds.
+    }
+    return { ...detail, malId, preview };
   } catch {
     return detail;
   }
@@ -1447,6 +1504,24 @@ export function mergeSankaChapterPages(source, payloads) {
   return [...byId.values()];
 }
 
+function cleanComicTitle(value) {
+  return String(value || "")
+    .replace(/^komik\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function readSankaComicMeta(source, payload) {
+  const data = source === "bacakomik" ? (payload?.detail || {}) : (payload?.data || payload || {});
+  const rating = Number(String(data.rating || "").replace(/[^0-9.]/g, ""));
+  return {
+    title: cleanComicTitle(data.title || payload?.title),
+    image: data.image || data.cover || data.imageSrc || "",
+    rating: Number.isFinite(rating) && rating > 0 ? rating : null,
+    description: plainText(data.description || data.synopsis),
+  };
+}
+
 async function sankaComicSearch(source, query) {
   const payload = await fetchJson(
     `${SANKA}/comic/${encodeURIComponent(source)}/search/${encodeURIComponent(query)}`,
@@ -1455,23 +1530,69 @@ async function sankaComicSearch(source, query) {
   const rows = payload?.komikList || payload?.results || payload?.seriesList || [];
   return rows
     .map((row) => ({
-      title: String(row.title || "").replace(/\s+/g, " ").trim(),
+      title: cleanComicTitle(row.title),
       slug: row.slug || row.manga_id || "",
+      image: row.image || row.cover || "",
+      rating: row.rating ? Number(String(row.rating).replace(/[^0-9.]/g, "")) : null,
     }))
     .filter((row) => row.title && row.slug && !row.slug.startsWith("?"));
 }
 
-async function loadSankaChapters(source, slug) {
+async function sankaComicCatalog(source, query) {
+  const rows = await sankaComicSearch(source, query);
+  return rows.map((row) => ({
+    id: `sanka:${source}:${row.slug}`,
+    source: "sanka",
+    title: row.title,
+    image: row.image,
+    rating: Number.isFinite(row.rating) ? row.rating : null,
+    kind: "manga",
+  }));
+}
+
+async function loadSankaComic(source, slug) {
+  let meta = { title: "", image: "", rating: null, description: "" };
   const payloads = [];
   for (let page = 1; page <= 40; page += 1) {
     const path = page === 1
       ? `/comic/${encodeURIComponent(source)}/detail/${encodeURIComponent(slug)}`
       : `/comic/${encodeURIComponent(source)}/detail/${encodeURIComponent(slug)}?page=${page}`;
     const payload = await fetchJson(`${SANKA}${path}`, { timeout: 8000 });
+    if (!meta.title) meta = readSankaComicMeta(source, payload);
     payloads.push(payload);
     if (!sankaChapterPageInfo(payload).hasNext) break;
   }
-  return mergeSankaChapterPages(source, payloads);
+  return { ...meta, chapters: mergeSankaChapterPages(source, payloads) };
+}
+
+async function loadSankaChapters(source, slug) {
+  const comic = await loadSankaComic(source, slug);
+  return comic.chapters;
+}
+
+async function sankaComicDetail(raw) {
+  const splitAt = String(raw || "").indexOf(":");
+  const source = splitAt > 0 ? raw.slice(0, splitAt) : "";
+  const slug = splitAt > 0 ? raw.slice(splitAt + 1) : "";
+  if (!SANKA_COMIC_SOURCES.includes(source) || !slug) {
+    throw new Error("Unknown Sanka comic");
+  }
+  const comic = await loadSankaComic(source, slug);
+  if (!comic.chapters.length) throw new Error("Sanka comic has no chapters");
+  const detail = {
+    id: `sanka:${source}:${slug}`,
+    source: "sanka",
+    title: comic.title || slug,
+    image: comic.image,
+    rating: comic.rating,
+    description: comic.description,
+    episodes: [],
+    chapters: comic.chapters,
+    notice: hostedChapterNotice(comic.title, comic.chapters, "Sanka") || "Chapter pages come from Sanka.",
+    kind: "manga",
+  };
+  remember([detail]);
+  return detail;
 }
 
 function sankaShouldLead(sankaChapters, dexChapters) {
@@ -1486,7 +1607,7 @@ async function sankaComicReader(title) {
       const found = await sankaComicSearch(source, title);
       const hit = found.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
       if (!hit) continue;
-      const chapters = await loadSankaChapters(source, hit.slug);
+      const chapters = (await loadSankaComic(source, hit.slug)).chapters;
       if (!chapters.length) continue;
       return {
         id: "sanka",
@@ -1732,19 +1853,37 @@ async function listMangaFresh(page = 1) {
 }
 
 async function searchMangaFresh(query, page = 1) {
-  return firstList([
-    () => mangadexList(page, query),
-    () => anilistPage({ type: "MANGA", page, sort: "SEARCH_MATCH", search: query }),
-    () => {
-      const params = new URLSearchParams();
-      params.set("filter[text]", query);
-      params.set("page[limit]", "20");
-      params.set("page[offset]", String((page - 1) * 20));
-      return kitsuCollection(`/manga?${params.toString()}`, "manga");
-    },
-    () => nozuCollection(`/search?type=manga&q=${encodeURIComponent(query)}`, "manga"),
-    () => kiryuuSearch(query),
-  ]);
+  const jobs = [
+    mangadexList(page, query)
+      .then((result) => ({ source: "mangadex", priority: 2, items: result.items, hasNext: result.hasNext }))
+      .catch(() => ({ source: "mangadex", priority: 2, items: [] })),
+    anilistPage({ type: "MANGA", page, sort: "SEARCH_MATCH", search: query })
+      .then((result) => ({ source: "anilist", priority: 3, items: result.items, hasNext: result.hasNext }))
+      .catch(() => ({ source: "anilist", priority: 3, items: [] })),
+  ];
+  if (page === 1) {
+    jobs.unshift(
+      sankaComicCatalog("komikindo", query)
+        .then((items) => ({ source: "sanka", priority: 0, items }))
+        .catch(() => ({ source: "sanka", priority: 0, items: [] })),
+      sankaComicCatalog("bacakomik", query)
+        .then((items) => ({ source: "sanka", priority: 1, items }))
+        .catch(() => ({ source: "sanka", priority: 1, items: [] })),
+    );
+    jobs.push(
+      kiryuuSearch(query)
+        .then((result) => ({ source: "kiryuu", priority: 9, items: result.items }))
+        .catch(() => ({ source: "kiryuu", priority: 9, items: [] })),
+    );
+  }
+  const lists = await Promise.all(jobs);
+  const items = rankMangaSearch(query, lists);
+  remember(items);
+  return {
+    items,
+    hasNext: lists.some((list) => list.hasNext),
+    source: items[0]?.source || "",
+  };
 }
 
 function withBareMangaId(catalogId) {
@@ -1764,6 +1903,7 @@ async function getMangaDetailFresh(catalogId) {
     anilist: (raw) => anilistDetail(raw, "MANGA"),
     kiryuu: (raw) => kiryuuDetail(raw),
     komikstation: (raw) => komikstationDetail(raw),
+    sanka: (raw) => sankaComicDetail(raw),
     nozu: (raw) => nozuMangaDetail(raw),
   };
   try {
