@@ -1,5 +1,4 @@
 import React, { useContext } from 'react'
-import { Container } from 'react-bootstrap'
 import { useForm } from 'react-hook-form'
 import axios from 'axios'
 import { AuthicateContext } from './Auth'
@@ -38,9 +37,9 @@ function Auth() {
     }
 
     return (
-        <Container>
+        <div className="auth-screen">
             <h1 className='test-success'>Login to rate your favourite Movies</h1>
-            <form onSubmit={handleSubmit(submitFormAuth)}>
+            <form className="panel-form" onSubmit={handleSubmit(submitFormAuth)}>
                 <div className='form-group'>
                     <label>Email</label>
                     <input {...register('email')} type="email" className='form-control' />
@@ -58,7 +57,7 @@ function Auth() {
               </div>
             </form>
 
-        </Container>
+        </div>
     )
 }
 

@@ -2,6 +2,7 @@ import React, { useState,useContext,useEffect } from "react";
 import axios from "axios";
 import { AuthicateContext } from "./Auth";
 import { useNavigate,Link } from 'react-router-dom'
+import './addMovie.css'
 function AddMovie() { 
   const [authInfo, setAuthInfo] = useContext(AuthicateContext)
   const token = localStorage.getItem('token');
@@ -58,7 +59,7 @@ function AddMovie() {
   }, []);
   
   return ( <div className="h">
-    <form  onSubmit={handleSubmit}>
+    <form className="panel-form" onSubmit={handleSubmit}>
       <label>
         Title:
         <input

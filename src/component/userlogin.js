@@ -61,16 +61,20 @@ function Login() {
   };
 
   return (
-    <div>
-      <form onSubmit={handleSubmit }>
+    <div className="auth-screen">
+      <form className="panel-form" onSubmit={handleSubmit }>
+        <label htmlFor="login-email">Email</label>
         <input
+          id="login-email"
           type="email"
           placeholder="Email"
           value={user.email}
           onChange={(e) => setUser({ ...user, email: e.target.value })}
           required
         />
+        <label htmlFor="login-password">Password</label>
         <input
+          id="login-password"
           type="password"
           placeholder="Password"
           value={user.password}

@@ -33,23 +33,29 @@ function Register() {
       };
     
       return (
-        <div>
-          <form onSubmit={handleSubmit}>
+        <div className="auth-screen">
+          <form className="panel-form" onSubmit={handleSubmit}>
+            <label htmlFor="register-username">Username</label>
             <input
+              id="register-username"
               type="text"
               placeholder="Username"
               value={user.username}
               onChange={(e) => setUser({ ...user, username: e.target.value })}
               required
             />
+            <label htmlFor="register-email">Email</label>
             <input
+              id="register-email"
               type="email"
               placeholder="Email"
               value={user.email}
               onChange={(e) => setUser({ ...user, email: e.target.value })}
               required
             />
+            <label htmlFor="register-password">Password</label>
             <input
+              id="register-password"
               type="password"
               placeholder="Password"
               value={user.password}

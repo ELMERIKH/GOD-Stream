@@ -68,7 +68,7 @@ function Update () {
        
     
       
-      <form onSubmit={handleSubmit}>
+      <form className="panel-form" onSubmit={handleSubmit}>
         <div>
           <label>Title:</label>
           <input type="text" name="title" value={movie.title} onChange={handleChange} />

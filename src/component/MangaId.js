@@ -1,137 +1,340 @@
-import { useEffect,useState } from "react";
-import axios from "axios";
-import './movie.css'
-import { useParams} from "react-router-dom";
-import 'bootstrap/dist/css/bootstrap.min.css';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+import "./movie.css";
+import "bootstrap/dist/css/bootstrap.min.css";
 import Rate from "./rating";
 import Comments from "./comments";
-import { Container } from "react-bootstrap";
-
-
+import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
+import WatchRail from "./WatchRail";
+import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER } from "../API/catalog";
+import { buildReaderSources, isEnglishImageChapter, newestChapterIndex, nextReaderSource, visibleReaderNotice } from "./readerSources";
 
 function MangaId() {
-  const [movie, setMovie] = useState('');  
-  
-  const email = localStorage.getItem('email');
-  const [selectedEpisode, setSelectedEpisode] = useState(0);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [url, setUrl] = useState({}); 
-  const [tit, setep] = useState('');
-  const [ti, sete] = useState('');
-  const [img, setimg] = useState(``);
+  const { id } = useParams();
+  const email = localStorage.getItem("email");
+  const [manga, setManga] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [chapterIndex, setChapterIndex] = useState(0);
+  const [chapterPick, setChapterPick] = useState(0);
+  const [chapterQuery, setChapterQuery] = useState("");
+  const [pages, setPages] = useState([]);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [pageNote, setPageNote] = useState("");
+  const [failedPages, setFailedPages] = useState({});
+  const [pageTries, setPageTries] = useState({});
+  const skipChapterScroll = useRef(true);
+  const followNewest = useRef(true);
+  const [extraSources, setExtraSources] = useState([]);
+  const [sourcesReady, setSourcesReady] = useState(false);
+  const [activeSource, setActiveSource] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
+  const failedSources = useRef(new Set());
 
-  
-
- 
-  let { id } = useParams();
-  
   useEffect(() => {
-    async function fetchMovie() {
-      const resu = await axios.get(`https://consumet-api-m8mf.onrender.com/manga/mangadex/info/${id}`, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-        },
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    setManga(null);
+    followNewest.current = true;
+    setChapterIndex(0);
+    setChapterQuery("");
+    setPages([]);
+    setExtraSources([]);
+    setSourcesReady(false);
+    setActiveSource("");
+    failedSources.current = new Set();
+    getMangaDetail(id, retryToken > 0)
+      .then((detail) => {
+        if (!cancelled) setManga(detail);
+      })
+      .catch(() => {
+        if (!cancelled) setError("This manga could not be loaded from any source.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
-    
-      
-      const r =resu.data.chapters;
-     
-      setep(resu.data.image);
-      sete(resu.data.title)
-     console.log(r)
-      
-      const res = await axios.get(`https://consumet-api-m8mf.onrender.com/at-home/server/${r[selectedEpisode].id}`
-       
+    return () => {
+      cancelled = true;
+    };
+  }, [id, retryToken]);
+
+  useEffect(() => {
+    if (!manga?.title) return undefined;
+    let cancelled = false;
+    setSourcesReady(false);
+    loadMangaSources(manga.title)
+      .then((sources) => {
+        if (!cancelled) setExtraSources(Array.isArray(sources) ? sources : []);
+      })
+      .catch(() => {
+        if (!cancelled) setExtraSources([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSourcesReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [manga]);
+
+  const chooseChapter = (index) => {
+    followNewest.current = false;
+    setChapterIndex(index);
+    setChapterPick((value) => value + 1);
+  };
+  const sources = useMemo(() => buildReaderSources(manga, extraSources), [manga, extraSources]);
+  const currentSource = sources.find((source) => source.id === activeSource) || sources[0] || null;
+  const chapters = currentSource?.chapters || [];
+  const newestIndex = newestChapterIndex(chapters);
+  const safeIndex = followNewest.current
+    ? (chapters.length ? newestIndex : 0)
+    : (chapters[chapterIndex] ? chapterIndex : 0);
+  const chapter = chapters[safeIndex] || null;
+  const noEnglishPages = sourcesReady && sources.length === 0;
+  const readerNotice = noEnglishPages || (!sourcesReady && !currentSource)
+    ? ""
+    : visibleReaderNotice(manga, currentSource);
+  const loadNotice = String(manga?.loadNotice || "").trim();
+  const showLoadNotice = Boolean(loadNotice && loadNotice !== readerNotice && !String(readerNotice || "").includes(loadNotice));
+
+  useEffect(() => {
+    if (!manga) return undefined;
+    const sourceId = currentSource?.id || "";
+    if (!chapter?.id || !isEnglishImageChapter(chapter)) {
+      if (sourceId) failedSources.current.add(sourceId);
+      const next = nextReaderSource(sources, failedSources.current);
+      if (next) {
+        followNewest.current = true;
+        setActiveSource(next.id);
+        setChapterIndex(newestChapterIndex(next.chapters));
+        setPageNote("");
+        return undefined;
+      }
+      setPages([]);
+      setPagesLoading(false);
+      setPageNote(
+        !sourcesReady
+          ? "Looking for a reader with page images."
+          : sources.length
+            ? (chapter ? "This chapter has no page images." : "")
+            : "No English chapter pages for this title."
       );
-
-      const rt=res.data.chapter;
-      
-      setimg(`https://uploads.mangadex.org/data/${rt.hash}/${rt.data[currentIndex]}` 
-       
-      );
-
-      setMovie(resu.data.chapters);
-
-    
-        setUrl(rt);
-        console.log(selectedEpisode);
-        console.log(r[selectedEpisode].id);
-        console.log(resu.data);
-        
-        
-     
-
+      return undefined;
     }
 
-    fetchMovie();
-   
-  }, [id, selectedEpisode,currentIndex]);
-  const handleNextClick = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % url.data.length);
-  };
+    let cancelled = false;
+    setPagesLoading(true);
+    setPageNote("");
+    getMangaPages(chapter.id)
+      .then((nextPages) => {
+        if (cancelled) return;
+        if (!nextPages.length) {
+          failedSources.current.add(sourceId);
+          const next = nextReaderSource(sources, failedSources.current);
+          if (next) {
+            followNewest.current = true;
+            setActiveSource(next.id);
+            setChapterIndex(newestChapterIndex(next.chapters));
+            setPages([]);
+            setPageNote("");
+            return;
+          }
+        }
+        setPages(nextPages);
+        setFailedPages({});
+        setPageNote(nextPages.length ? "" : "Pages could not be loaded for this chapter.");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        failedSources.current.add(sourceId);
+        const next = nextReaderSource(sources, failedSources.current);
+        if (next) {
+          followNewest.current = true;
+          setActiveSource(next.id);
+          setChapterIndex(newestChapterIndex(next.chapters));
+          setPages([]);
+          setPageNote("");
+          return;
+        }
+        setPages([]);
+        setPageNote("Pages could not be loaded. The chapter list is still available.");
+      })
+      .finally(() => {
+        if (!cancelled) setPagesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [manga, sources, chapter, currentSource?.id, sourcesReady]);
 
-  const handlePrevClick = () => {
-    setCurrentIndex((prevIndex) =>
-      prevIndex === 0 ? url.data.length - 1 : prevIndex - 1
+  useEffect(() => {
+    if (!pages.length || !currentSource?.id) return undefined;
+    if (!pages.every((_, index) => failedPages[index])) return undefined;
+    failedSources.current.add(currentSource.id);
+    const next = nextReaderSource(sources, failedSources.current);
+    if (!next) return undefined;
+    followNewest.current = true;
+    setActiveSource(next.id);
+    setChapterIndex(newestChapterIndex(next.chapters));
+    setPages([]);
+    setFailedPages({});
+    setPageNote("");
+    return undefined;
+  }, [failedPages, pages, currentSource, sources]);
+
+  useEffect(() => {
+    if (skipChapterScroll.current) {
+      skipChapterScroll.current = false;
+      return undefined;
+    }
+    document.getElementById("reader-strip")?.scrollIntoView({ block: "start" });
+    return undefined;
+  }, [safeIndex, activeSource]);
+
+  if (loading) {
+    return <CatalogSkeleton variant="reader" label="Opening the reader" />;
+  }
+
+  if (!manga) {
+    return (
+      <div className="search-box">
+        <div className="catalog-error" role="alert">
+          <p>{error || "This manga could not be loaded."}</p>
+          <button type="button" onClick={() => setRetryToken((value) => value + 1)}>
+            Retry
+          </button>
+        </div>
+      </div>
     );
-  };
+  }
 
-  
- 
-  return ( <body style={{ backgroundColor: "#2E2E2E" }}> 
-   
-    <div className="container my-5">
-      <div className="row">
-        <div className="col-md-4">
-          <img
-            src={tit}
-           
-            className="img-fluid rounded"
-          />
-          <h1 className="rate">Rating :{movie.rating}</h1>
-         
+  const pageCount = pages.length;
+  const railItems = chapters.filter(isEnglishImageChapter);
+  const pageMessage = noEnglishPages ? "No English chapter pages for this title." : pageNote;
+
+  return (
+    <div className="watch-page">
+      <div className="watch-layout watch-layout--reader">
+        <div className="watch-stage">
+          {manga.stale ? (
+            <div className="status-banner" role="status">
+              <p>Showing a saved copy while sources catch up.</p>
+              <button type="button" onClick={() => setRetryToken((value) => value + 1)}>Refresh</button>
+            </div>
+          ) : null}
+          {sources.length > 0 ? (
+            <div className="source-row" role="group" aria-label="Reading sources">
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  title={source.label}
+                  className={source.id === currentSource?.id ? "is-active" : ""}
+                  onClick={() => {
+                    failedSources.current.delete(source.id);
+                    followNewest.current = true;
+                    setActiveSource(source.id);
+                    setChapterIndex(newestChapterIndex(source.chapters));
+                  }}
+                >
+                  {source.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <h2 className="reader-chapter">{chapter?.title || "Choose a chapter"}</h2>
+          <div className="reader-toolbar">
+            <button
+              type="button"
+              disabled={safeIndex === 0}
+              onClick={() => chooseChapter(Math.max(0, safeIndex - 1))}
+            >
+              Previous chapter
+            </button>
+            <button
+              type="button"
+              disabled={!chapters.length || safeIndex >= chapters.length - 1}
+              onClick={() => chooseChapter(Math.min(chapters.length - 1, safeIndex + 1))}
+            >
+              Next chapter
+            </button>
+            <span>{pageCount ? `${pageCount} pages · scroll` : "No pages"}</span>
+          </div>
+          {readerNotice ? <p className="catalog-note">{readerNotice}</p> : null}
+          {showLoadNotice ? <p className="catalog-note">{loadNotice}</p> : null}
+          {pageMessage ? <p className="catalog-note">{pageMessage}</p> : null}
+          {pagesLoading ? (
+            <div className="reader-page reader-page--loading" role="status" aria-live="polite">
+              <LoaderMark />
+              <p>Loading pages</p>
+            </div>
+          ) : pageCount > 0 ? (
+            <div className="reader-strip" id="reader-strip" key={chapterPick}>
+              {pages.map((src, index) => (
+                failedPages[index] ? (
+                  <div key={`${src}:broken`} className="reader-page reader-page--broken" role="alert">
+                    <p>Page {index + 1} did not load.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFailedPages((current) => {
+                          const next = { ...current };
+                          delete next[index];
+                          return next;
+                        });
+                        setPageTries((current) => ({ ...current, [index]: (current[index] || 0) + 1 }));
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <img
+                    key={`${src}:${pageTries[index] || 0}`}
+                    className="reader-page"
+                    src={src}
+                    alt={`${manga.title} page ${index + 1}`}
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    loading={index < 2 ? "eager" : "lazy"}
+                    onError={() => setFailedPages((current) => ({ ...current, [index]: true }))}
+                  />
+                )
+              ))}
+            </div>
+          ) : null}
         </div>
-        <div className="col-md-8" style={{  color: "#F2F2F2" }}>
-          <h1>{ti}</h1>
-          <div className="my-4">
-            <p>{movie.description}</p>
-          </div>
-          
-          
-          <select value={selectedEpisode} onChange={(e) => setSelectedEpisode(e.target.value)}>
-  {movie && movie.map((episode, index) => (
-    <option key={index} value={index}>
-      Episode : {episode.title}  
-    </option>
-  
-
-    
-  ))}
-
-</select> PAGE : {currentIndex}
-
- <div>
- <td><button onClick={handlePrevClick}>Prev</button></td><td><button onClick={handleNextClick}>Next</button></td>
-
-  {url && <img src={img} alt="" width="600" height="800"/>}
-  
- </div>
-
-          </div>
-          <div className="my-4">
-            <Rate />
-          </div>
-        </div>
+        <WatchRail
+          label="Chapters"
+          query={chapterQuery}
+          onQuery={setChapterQuery}
+          items={railItems}
+          selectedIndex={safeIndex}
+          onSelect={chooseChapter}
+          emptyNote={noEnglishPages ? "No English chapter pages for this title." : "No chapter list is available for this title."}
+        />
       </div>
-
-      <div className="row my-5">
-        <div className="col-md-12">
-          <Comments user={email} movie={id} />
+      <section className="watch-meta">
+        <img
+          className="watch-poster"
+          src={manga.image || POSTER_PLACEHOLDER}
+          alt={manga.title}
+          referrerPolicy="no-referrer"
+          onError={onPosterError}
+        />
+        <div>
+          {currentSource?.label ? <p className="source-pill">{currentSource.label}</p> : null}
+          <h1>{manga.title}</h1>
+          {manga.rating ? <p className="rate">Score {manga.rating}</p> : null}
+          <p className="catalog-description">{manga.description || "No description is available."}</p>
         </div>
+      </section>
+      <div className="my-4">
+        <Rate />
       </div>
-   
-    
-    </body>
+      <Comments user={email} movie={id} />
+    </div>
   );
 }
 
