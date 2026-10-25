@@ -1,17 +1,24 @@
 import { sourceLabel } from "../API/catalog";
 
-const COMIC_LABELS = {
-  bacakomik: "BacaKomik · Indonesian",
-  komikindo: "Komikindo · Indonesian",
-  komikstation: "Komikstation · Indonesian",
-  mangakita: "MangaKita · Indonesian",
-};
-
-const SOURCE_ORDER = ["weebcentral", "mangadex", "bacakomik", "komikindo", "komikstation", "mangakita"];
+const SOURCE_ORDER = ["weebcentral", "mangadex"];
+const INDONESIAN_SOURCE_IDS = new Set(["bacakomik", "komikindo", "komikstation", "mangakita", "sanka"]);
 
 export function isImageChapter(chapter) {
   if (!chapter?.id || !chapter.pages) return false;
   return !String(chapter.id).startsWith("mangapill:");
+}
+
+export function isIndonesianChapterId(chapterId) {
+  const id = String(chapterId || "");
+  return id.startsWith("sanka:")
+    || id.startsWith("komikstation:")
+    || id.startsWith("bacakomik:")
+    || id.startsWith("komikindo:")
+    || id.startsWith("mangakita:");
+}
+
+export function isEnglishImageChapter(chapter) {
+  return isImageChapter(chapter) && !isIndonesianChapterId(chapter?.id);
 }
 
 function chapterSourceId(chapterId) {
@@ -28,7 +35,7 @@ function readerIdentity(detail) {
   const chapters = detail?.chapters || [];
   const fromChapter = chapters.map((chapter) => chapterSourceId(chapter.id)).find(Boolean);
   if (fromChapter === "mangapill") return { id: "mangapill", label: "MangaPill" };
-  if (fromChapter && COMIC_LABELS[fromChapter]) return { id: fromChapter, label: COMIC_LABELS[fromChapter] };
+  if (fromChapter && INDONESIAN_SOURCE_IDS.has(fromChapter)) return { id: fromChapter, label: sourceLabel(fromChapter) };
   if (fromChapter === "weebcentral") return { id: "weebcentral", label: "Weeb Central" };
   if (chapters.some((chapter) => chapter.id && chapter.pages && !String(chapter.id).includes(":"))) {
     return { id: "mangadex", label: "MangaDex" };
@@ -48,15 +55,15 @@ function normalizedSource(source) {
   return {
     ...source,
     id,
-    label: COMIC_LABELS[id] || source.label || sourceLabel(id),
+    label: source.label || sourceLabel(id),
   };
 }
 
 export function buildReaderSources(manga, extraSources) {
   const sources = [];
   const identity = readerIdentity(manga);
-  const primary = (manga?.chapters || []).filter(isImageChapter);
-  if (primary.length && identity.id !== "mangapill" && identity.id !== "anilist") {
+  const primary = (manga?.chapters || []).filter(isEnglishImageChapter);
+  if (primary.length && identity.id !== "mangapill" && identity.id !== "anilist" && !INDONESIAN_SOURCE_IDS.has(identity.id)) {
     sources.push({
       id: identity.id,
       label: identity.label,
@@ -65,11 +72,11 @@ export function buildReaderSources(manga, extraSources) {
     });
   }
   (extraSources || []).forEach((source) => {
-    if (!source?.id || source.id === "mangapill" || source.id === "anilist") return;
-    const chapters = (source.chapters || []).filter(isImageChapter);
+    if (!source?.id || source.id === "mangapill" || source.id === "anilist" || INDONESIAN_SOURCE_IDS.has(source.id)) return;
+    const chapters = (source.chapters || []).filter(isEnglishImageChapter);
     if (!chapters.length) return;
     const normalized = normalizedSource({ ...source, chapters });
-    if (!normalized.id || normalized.id === "mangapill" || sources.some((item) => item.id === normalized.id)) return;
+    if (!normalized.id || normalized.id === "mangapill" || INDONESIAN_SOURCE_IDS.has(normalized.id) || sources.some((item) => item.id === normalized.id)) return;
     sources.push(normalized);
   });
   return sources
@@ -84,7 +91,10 @@ export function buildReaderSources(manga, extraSources) {
 export function nextReaderSource(sources, failedIds) {
   const failed = failedIds instanceof Set ? failedIds : new Set(failedIds || []);
   return (sources || []).find((source) => (
-    source?.id && !failed.has(source.id) && (source.chapters || []).some(isImageChapter)
+    source?.id
+    && !INDONESIAN_SOURCE_IDS.has(source.id)
+    && !failed.has(source.id)
+    && (source.chapters || []).some(isEnglishImageChapter)
   )) || null;
 }
 

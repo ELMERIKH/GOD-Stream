@@ -740,7 +740,7 @@ test("MangaDex prefers a hosted language over a longer list that stops earlier",
   expect(detail.notice).toBe("");
 });
 
-test("loadMangaSources uses Komikstation when MangaDex has no hosted pages", async () => {
+test("loadMangaSources does not use Komikstation when no English pages exist", async () => {
   global.fetch.mockImplementation((url) => {
     const href = String(url);
     if (href.includes("/feed")) {
@@ -773,28 +773,18 @@ test("loadMangaSources uses Komikstation when MangaDex has no hosted pages", asy
         ],
       });
     }
-    if (href.includes("/comic/kiryuu/search/")) {
-      return jsonResponse({ seriesList: [{ title: "Martial Peak", slug: "martial-peak" }] });
-    }
-    if (href.includes("/comic/kiryuu/manga/")) {
-      return jsonResponse({ title: "Martial Peak", synopsis: "A climber.", imageSrc: "" });
-    }
-    if (href.includes("/comic/komikstation/manga/")) {
-      return jsonResponse({
-        title: "Martial Peak",
-        synopsis: "A climber.",
-        imageSrc: "https://example.com/martial.jpg",
-        chapters: [{ slug: "martial-peak-chapter-1", title: "Chapter 1" }],
-      });
+    if (href.includes("weebcentral.com")) {
+      return textResponse("<div>No results</div>");
     }
     return Promise.reject(new Error(`unexpected ${href}`));
   });
 
-  const sources = await loadMangaSources("Martial Peak");
-  expect(sources).toHaveLength(1);
-  expect(sources[0].id).toBe("komikstation");
-  expect(sources[0].chapters[0].id).toBe("komikstation:martial-peak-chapter-1");
-  expect(sources[0].chapters[0].pages).toBeGreaterThan(0);
+  await expect(loadMangaSources("Martial Peak")).rejects.toThrow("No chapter pages");
+  const urls = global.fetch.mock.calls.map((call) => String(call[0]));
+  expect(urls.some((href) => href.includes("/comic/komikstation"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/bacakomik"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/komikindo"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/mangakita"))).toBe(false);
 });
 
 test("Sanka comic chapter pages keep chapter 1 and the latest chapter", () => {
@@ -979,13 +969,14 @@ test("the default manga reader is the English source, not Komikindo", async () =
   expect(sources[0].chapters.map((chapter) => chapter.number)).toEqual(["135", "1"]);
   expect(sources[0].notice).toMatch(/Chapter 136 is not on Weeb Central/);
   expect(sources[0].notice).toMatch(/Showing chapter 135/);
-  expect(sources.map((source) => source.id)).toEqual(["weebcentral", "mangadex", "bacakomik", "komikindo"]);
-  expect(sources[2].label).toBe("BacaKomik · Indonesian");
-  expect(sources[3].label).toBe("Komikindo · Indonesian");
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral", "mangadex"]);
+  expect(sources.some((source) => /bacakomik|komikindo|komikstation|mangakita|indonesian/i.test(`${source.id} ${source.label}`))).toBe(false);
   expect(sources.some((source) => source.id === "anilist")).toBe(false);
   const urls = global.fetch.mock.calls.map((call) => String(call[0]));
-  expect(urls.some((href) => href.includes("/comic/komikindo/search/"))).toBe(true);
-  expect(urls.some((href) => href.includes("/comic/bacakomik/search/"))).toBe(true);
+  expect(urls.some((href) => href.includes("/comic/komikindo/search/"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/bacakomik/search/"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/komikstation"))).toBe(false);
+  expect(urls.some((href) => href.includes("/comic/mangakita"))).toBe(false);
   expect(urls.some((href) => href.includes("adult=False"))).toBe(true);
 });
 

@@ -13,9 +13,8 @@
 // Sanka https://www.sankavollerei.web.id : CORS *. Episode servers become player buttons.
 // Komikstation chapter images and Kiryuu covers come from the same host.
 // Weeb Central https://weebcentral.com : English chapter lists and page images.
-// Sanka comic routes that returned chapter lists and HTTP 200 page images:
-// BacaKomik, Komikindo, Komikstation, and MangaKita. Those pages are Indonesian,
-// so they are extra pills and never the default reader.
+// Indonesian Sanka comics (BacaKomik, Komikindo, Komikstation, MangaKita) are
+// not reader pills and are not used when an English page list is missing.
 // Rejected after a live probe: Komiku, Maid, SoulScans, Meganei, Komikcast,
 // Bacaman, Softkomik, Westmanga, Cosmic Scans, and Komikuindo answered 403 or 500.
 // Kiryuu's chapter route answered 500. Shinigami lists chapters, then
@@ -36,7 +35,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v17";
+const HTTP_KEY = "streamgod.http.v18";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -1516,24 +1515,6 @@ async function komikstationDetail(slug) {
 async function kiryuuDetail(slug) {
   const payload = await fetchJson(`${SANKA}/comic/kiryuu/manga/${encodeURIComponent(slug)}`);
   if (!payload?.title) return null;
-  try {
-    const readable = await komikstationDetail(slug);
-    if (readable?.chapters?.length) {
-      const detail = {
-        ...readable,
-        id: `kiryuu:${slug}`,
-        source: "kiryuu",
-        image: readable.image || payload.imageSrc || "",
-        title: payload.title || readable.title,
-        description: plainText(payload.synopsis) || readable.description,
-        notice: ["Chapter pages come from Komikstation.", readable.notice].filter(Boolean).join(" "),
-      };
-      remember([detail]);
-      return detail;
-    }
-  } catch {
-    // Komikstation does not have this slug. Keep the Kiryuu record.
-  }
   const chapters = (payload.chapters || []).map((chapter) => ({
     id: "",
     number: chapter.slug,
@@ -1833,110 +1814,16 @@ async function mangadexReader(title) {
   };
 }
 
-// Indonesian Sanka comics. Each one is its own pill. English readers stay first.
-// Komikstation search answers 500, so that source is opened by the title slug
-// and kept only when the manga title matches. Kiryuu search ignores the query.
-const COMIC_READERS = [
-  { id: "bacakomik", label: "BacaKomik · Indonesian", shortName: "BacaKomik", detail: "detail" },
-  { id: "komikindo", label: "Komikindo · Indonesian", shortName: "Komikindo", detail: "detail" },
-  { id: "komikstation", label: "Komikstation · Indonesian", shortName: "Komikstation", detail: "manga" },
-  { id: "mangakita", label: "MangaKita · Indonesian", shortName: "MangaKita", detail: "detail" },
-];
-
-function comicSearchRows(payload) {
-  if (Array.isArray(payload?.komikList)) return payload.komikList;
-  if (Array.isArray(payload?.results)) return payload.results;
-  if (Array.isArray(payload?.seriesList)) return payload.seriesList;
-  if (Array.isArray(payload?.data)) return payload.data;
-  return [];
-}
-
-function comicChapterRows(payload) {
-  const boxes = [payload?.detail, payload?.data, payload?.details, payload];
-  for (const box of boxes) {
-    if (Array.isArray(box?.chapters) && box.chapters.length) return box.chapters;
-  }
-  return [];
-}
-
-function comicTitleSlug(title) {
-  return String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-
-function comicChapterId(source, seriesSlug, row) {
-  const number = readSankaChapterNumber(row);
-  let slug = String(row?.slug || row?.chapter_id || "");
-  if (source.id === "mangakita" && seriesSlug && number) slug = `${seriesSlug}-chapter-${number}`;
-  if (!slug || slug.includes("mangapill:")) return "";
-  if (source.id === "komikstation") return `komikstation:${slug}`;
-  return `sanka:${source.id}:${slug}`;
-}
-
-async function comicSearch(sourceId, title) {
-  try {
-    const payload = await fetchJson(`${SANKA}/comic/${sourceId}/search/${encodeURIComponent(title)}`, { timeout: 8000 });
-    const rows = comicSearchRows(payload)
-      .map((row) => ({ title: cleanComicTitle(row.title), slug: row.slug }))
-      .filter((row) => row.slug && row.title);
-    return bestTitleMatch(title, rows, (row) => row.title);
-  } catch {
-    return null;
-  }
-}
-
-async function loadComicReader(source, title) {
-  let hit = await comicSearch(source.id, title);
-  if (!hit?.slug && source.id === "komikstation") {
-    const slug = comicTitleSlug(title);
-    if (slug) hit = { title, slug };
-  }
-  if (!hit?.slug) return null;
-  const path = source.detail === "manga"
-    ? `/comic/${source.id}/manga/${encodeURIComponent(hit.slug)}`
-    : `/comic/${source.id}/detail/${encodeURIComponent(hit.slug)}`;
-  const payload = await fetchJson(`${SANKA}${path}`, { timeout: 8000 });
-  const metaTitle = cleanComicTitle(
-    payload?.detail?.title || payload?.data?.title || payload?.details?.title || payload?.title || hit.title
-  );
-  if (!bestTitleMatch(title, [{ title: metaTitle }], (row) => row.title)) return null;
-  const chapters = [];
-  const seen = new Set();
-  comicChapterRows(payload).forEach((row) => {
-    const id = comicChapterId(source, hit.slug, row);
-    if (!id || seen.has(id)) return;
-    seen.add(id);
-    const number = readSankaChapterNumber(row);
-    chapters.push({
-      id,
-      number: number || cleanComicTitle(row.title) || "Chapter",
-      title: number ? `Chapter ${number}` : (cleanComicTitle(row.title) || "Chapter"),
-      pages: 1,
-    });
-  });
-  if (!chapters.length) return null;
-  return {
-    id: source.id,
-    label: source.label,
-    chapters,
-    notice: hostedChapterNotice(title, chapters, source.shortName)
-      || `Indonesian chapter pages come from ${source.shortName}.`,
-  };
-}
-
 export function loadMangaSources(title) {
   const key = `manga-sources:${compactTitle(title)}`;
   return cached(key, async () => {
-    const [english, dex, ...comics] = await Promise.all([
+    const [english, dex] = await Promise.all([
       weebReader(title).catch(() => null),
       mangadexReader(title).catch(() => null),
-      ...COMIC_READERS.map((source) => loadComicReader(source, title).catch(() => null)),
     ]);
     const sources = [];
     if (english?.chapters?.length) sources.push(english);
     if (dex?.chapters?.length) sources.push(dex);
-    comics.forEach((source) => {
-      if (source?.chapters?.length) sources.push(source);
-    });
     if (!sources.length) {
       const missed = new Error("No chapter pages");
       missed.noStore = true;
@@ -2031,22 +1918,8 @@ async function nozuMangaDetail(slug) {
   const data = payload.data;
   if (!data?.title) return null;
   const item = nozuItem(data, "manga");
-  let chapters = [];
-  let notice = "Nozu has the catalog entry. Chapter pages load when another source matches this title.";
-  try {
-    const title = item.title;
-    const found = await kiryuuSearch(title);
-    const hit = found.items.find((entry) => playableTitle(title, entry.title) || sameWork(title, entry.title));
-    if (hit) {
-      const readable = await kiryuuDetail(parseCatalogId(hit.id).raw);
-      if (readable?.chapters?.some((chapter) => chapter.id && chapter.pages)) {
-        chapters = readable.chapters;
-        notice = readable.notice || "Chapter pages come from Komikstation.";
-      }
-    }
-  } catch {
-    // The page source can still arrive from the reader buttons.
-  }
+  const chapters = [];
+  const notice = "Nozu has the catalog entry. Chapter pages load when another source matches this title.";
   const detail = {
     ...item,
     id: `nozu:${slug}`,
@@ -2155,28 +2028,42 @@ function withBareMangaId(catalogId) {
   return parsed;
 }
 
+function isIndonesianChapterId(chapterId) {
+  const id = String(chapterId || "");
+  return id.startsWith("sanka:")
+    || id.startsWith("komikstation:")
+    || id.startsWith("bacakomik:")
+    || id.startsWith("komikindo:")
+    || id.startsWith("mangakita:");
+}
+
 function hasReadableChapters(chapters) {
   return (chapters || []).some((chapter) => {
     const id = String(chapter?.id || "");
-    return Boolean(chapter?.pages) && id && !id.startsWith("mangapill:");
+    return Boolean(chapter?.pages) && id && !id.startsWith("mangapill:") && !isIndonesianChapterId(id);
   });
 }
 
+const ENGLISH_LOOKUP_SOURCES = new Set(["anilist", "kitsu", "nozu", "kiryuu", "komikstation", "sanka"]);
+
 async function withReadableChapters(detail) {
   if (!detail?.title) return detail;
-  const placeholder = ["anilist", "kitsu", "nozu"].includes(detail.source);
-  if (!placeholder || hasReadableChapters(detail.chapters)) return detail;
+  const needsEnglish = ENGLISH_LOOKUP_SOURCES.has(detail.source) || !hasReadableChapters(detail.chapters);
+  if (!needsEnglish) return detail;
+  if (["weebcentral", "mangadex"].includes(detail.source) && hasReadableChapters(detail.chapters)) return detail;
   try {
     const sources = await loadMangaSources(detail.title);
     const readable = (sources || []).find((source) => hasReadableChapters(source.chapters));
-    if (!readable) return detail;
+    if (!readable) {
+      return { ...detail, chapters: [] };
+    }
     return {
       ...detail,
       chapters: readable.chapters,
       notice: readable.notice || detail.notice,
     };
   } catch {
-    return detail;
+    return { ...detail, chapters: (detail.chapters || []).filter((chapter) => !isIndonesianChapterId(chapter?.id)) };
   }
 }
 

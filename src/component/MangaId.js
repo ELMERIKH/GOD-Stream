@@ -6,8 +6,8 @@ import Rate from "./rating";
 import Comments from "./comments";
 import CatalogSkeleton, { LoaderMark } from "./CatalogSkeleton";
 import WatchRail from "./WatchRail";
-import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER, sourceLabel } from "../API/catalog";
-import { buildReaderSources, isImageChapter, newestChapterIndex, nextReaderSource, visibleReaderNotice } from "./readerSources";
+import { getMangaDetail, getMangaPages, loadMangaSources, onPosterError, POSTER_PLACEHOLDER } from "../API/catalog";
+import { buildReaderSources, isEnglishImageChapter, newestChapterIndex, nextReaderSource, visibleReaderNotice } from "./readerSources";
 
 function MangaId() {
   const { id } = useParams();
@@ -91,7 +91,8 @@ function MangaId() {
     ? (chapters.length ? newestIndex : 0)
     : (chapters[chapterIndex] ? chapterIndex : 0);
   const chapter = chapters[safeIndex] || null;
-  const readerNotice = !sourcesReady && !currentSource
+  const noEnglishPages = sourcesReady && sources.length === 0;
+  const readerNotice = noEnglishPages || (!sourcesReady && !currentSource)
     ? ""
     : visibleReaderNotice(manga, currentSource);
   const loadNotice = String(manga?.loadNotice || "").trim();
@@ -100,7 +101,7 @@ function MangaId() {
   useEffect(() => {
     if (!manga) return undefined;
     const sourceId = currentSource?.id || "";
-    if (!chapter?.id || !isImageChapter(chapter)) {
+    if (!chapter?.id || !isEnglishImageChapter(chapter)) {
       if (sourceId) failedSources.current.add(sourceId);
       const next = nextReaderSource(sources, failedSources.current);
       if (next) {
@@ -115,7 +116,9 @@ function MangaId() {
       setPageNote(
         !sourcesReady
           ? "Looking for a reader with page images."
-          : (chapter ? "This chapter has no page images." : "")
+          : sources.length
+            ? (chapter ? "This chapter has no page images." : "")
+            : "No English chapter pages for this title."
       );
       return undefined;
     }
@@ -207,7 +210,8 @@ function MangaId() {
   }
 
   const pageCount = pages.length;
-  const railItems = (chapters.length ? chapters : (manga.chapters || [])).filter(isImageChapter);
+  const railItems = chapters.filter(isEnglishImageChapter);
+  const pageMessage = noEnglishPages ? "No English chapter pages for this title." : pageNote;
 
   return (
     <div className="watch-page">
@@ -259,7 +263,7 @@ function MangaId() {
           </div>
           {readerNotice ? <p className="catalog-note">{readerNotice}</p> : null}
           {showLoadNotice ? <p className="catalog-note">{loadNotice}</p> : null}
-          {pageNote ? <p className="catalog-note">{pageNote}</p> : null}
+          {pageMessage ? <p className="catalog-note">{pageMessage}</p> : null}
           {pagesLoading ? (
             <div className="reader-page reader-page--loading" role="status" aria-live="polite">
               <LoaderMark />
@@ -308,7 +312,7 @@ function MangaId() {
           items={railItems}
           selectedIndex={safeIndex}
           onSelect={chooseChapter}
-          emptyNote="No chapter list is available for this title."
+          emptyNote={noEnglishPages ? "No English chapter pages for this title." : "No chapter list is available for this title."}
         />
       </div>
       <section className="watch-meta">
@@ -320,7 +324,7 @@ function MangaId() {
           onError={onPosterError}
         />
         <div>
-          <p className="source-pill">{currentSource?.label || sourceLabel(manga.source)}</p>
+          {currentSource?.label ? <p className="source-pill">{currentSource.label}</p> : null}
           <h1>{manga.title}</h1>
           {manga.rating ? <p className="rate">Score {manga.rating}</p> : null}
           <p className="catalog-description">{manga.description || "No description is available."}</p>

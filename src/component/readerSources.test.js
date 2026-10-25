@@ -41,7 +41,7 @@ test("a missing-chapter note stays on its own when the catalog fell back", () =>
   expect(note).not.toMatch(/did not respond/);
 });
 
-test("a Kiryuu title that already has Komikstation pages stays on that source", () => {
+test("a Kiryuu title with Komikstation pages does not show that source", () => {
   const manga = {
     source: "kiryuu",
     notice: "Chapter pages come from Komikstation.",
@@ -56,9 +56,8 @@ test("a Kiryuu title that already has Komikstation pages stays on that source", 
     chapters: [{ id: "uuid", number: "10", title: "Chapter 10", pages: 8 }],
   };
   const sources = buildReaderSources(manga, [dex]);
-  expect(sources.map((source) => source.id)).toEqual(["mangadex", "komikstation"]);
-  expect(sources[1].label).toBe("Komikstation · Indonesian");
-  expect(newestChapterIndex(sources[1].chapters)).toBe(0);
+  expect(sources.map((source) => source.id)).toEqual(["mangadex"]);
+  expect(sources.some((source) => /indonesian|komikstation/i.test(source.label))).toBe(false);
   const withSanka = buildReaderSources(manga, [
     dex,
     {
@@ -73,10 +72,9 @@ test("a Kiryuu title that already has Komikstation pages stays on that source", 
       chapters: [{ id: "weebchapter:01J76XY7E5E1C5Y9J0M2FCVQ8H", number: "10", title: "Chapter 10", pages: 1 }],
     },
   ]);
-  expect(withSanka.map((source) => source.id)).toEqual(["weebcentral", "mangadex", "komikindo", "komikstation"]);
-  expect(withSanka[2].label).toBe("Komikindo · Indonesian");
+  expect(withSanka.map((source) => source.id)).toEqual(["weebcentral", "mangadex"]);
   expect(visibleReaderNotice(manga, withSanka[0])).toBe("English chapter pages come from Weeb Central.");
-  expect(buildReaderSources(manga, [])).toHaveLength(1);
+  expect(buildReaderSources(manga, [])).toEqual([]);
 });
 
 test("an Indonesian Komikindo list is not the reader when English pages exist", () => {
@@ -93,10 +91,54 @@ test("an Indonesian Komikindo list is not the reader when English pages exist", 
     chapters: [{ id: "weebchapter:01M57RRV54GD4MNM4D2V8WPWR4", number: "135", title: "Chapter 135", pages: 1 }],
   };
   const sources = buildReaderSources(manga, [english]);
-  expect(sources.map((source) => source.id)).toEqual(["weebcentral", "komikindo"]);
-  expect(sources[0].id).toBe("weebcentral");
-  expect(sources[1].label).toBe("Komikindo · Indonesian");
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral"]);
   expect(sources[0].notice).toMatch(/Weeb Central/);
+  expect(sources.some((source) => /komikindo|indonesian/i.test(`${source.id} ${source.label}`))).toBe(false);
+});
+
+test("Chainsaw Man selects Weeb Central and does not show Indonesian pills", () => {
+  const manga = {
+    source: "anilist",
+    title: "Chainsaw Man",
+    notice: "AniList has the catalog entry, not chapter pages.",
+    chapters: [{ id: "", number: 232, title: "Chapter 232", pages: 0 }],
+  };
+  const sources = buildReaderSources(manga, [
+    {
+      id: "bacakomik",
+      label: "BacaKomik · Indonesian",
+      notice: "Indonesian chapter pages come from BacaKomik.",
+      chapters: [{ id: "sanka:bacakomik:chainsaw-man-chapter-232", number: "232", title: "Chapter 232", pages: 28 }],
+    },
+    {
+      id: "komikindo",
+      label: "Komikindo · Indonesian",
+      chapters: [{ id: "sanka:komikindo:chainsaw-man-chapter-232", number: "232", pages: 28 }],
+    },
+    {
+      id: "mangakita",
+      label: "MangaKita · Indonesian",
+      chapters: [{ id: "sanka:mangakita:chainsaw-man-chapter-232", number: "232", pages: 28 }],
+    },
+    {
+      id: "weebcentral",
+      label: "Weeb Central",
+      notice: "English chapter pages come from Weeb Central.",
+      chapters: [{ id: "weebchapter:01KMG70ZY7V9NGC9NWCXSTD628", number: "232", title: "Chapter 232", pages: 30 }],
+    },
+  ]);
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral"]);
+  expect(nextReaderSource(sources)?.id).toBe("weebcentral");
+  expect(nextReaderSource(sources, ["weebcentral"])).toBeNull();
+  expect(visibleReaderNotice(manga, sources[0])).toBe("English chapter pages come from Weeb Central.");
+  const indonesianOnly = buildReaderSources(manga, [
+    {
+      id: "bacakomik",
+      chapters: [{ id: "sanka:bacakomik:chainsaw-man-chapter-232", number: "232", pages: 28 }],
+    },
+  ]);
+  expect(indonesianOnly).toEqual([]);
+  expect(nextReaderSource(indonesianOnly)).toBeNull();
 });
 
 test("Vinland Saga selects the English source over Komikindo when both have pages", () => {
@@ -120,14 +162,13 @@ test("Vinland Saga selects the English source over Komikindo when both have page
       chapters: [{ id: "weebchapter:01K10T8CP17R5M1AX3VX5QJ1D1", number: "220", title: "Chapter 220", pages: 48 }],
     },
   ]);
-  expect(sources.map((source) => source.id)[0]).toBe("weebcentral");
-  expect(sources.map((source) => source.id)).toContain("komikindo");
+  expect(sources.map((source) => source.id)).toEqual(["weebcentral"]);
   expect(nextReaderSource(sources)?.id).toBe("weebcentral");
   expect(visibleReaderNotice(manga, sources[0])).toBe("English chapter pages come from Weeb Central.");
   expect(visibleReaderNotice(manga, sources[0])).not.toMatch(/Indonesian/);
 });
 
-test("a failed first manga source falls through to a second source with pages", () => {
+test("a failed first manga source falls through to a second English source with pages", () => {
   const sources = [
     {
       id: "weebcentral",
@@ -146,9 +187,10 @@ test("a failed first manga source falls through to a second source with pages", 
   const noPages = [
     { id: "komikindo", chapters: [{ id: "", number: "232", pages: 0 }] },
     { id: "bacakomik", chapters: [{ id: "sanka:bacakomik:kagurabachi-chapter-135", number: "135", pages: 1 }] },
+    { id: "komikstation", chapters: [{ id: "komikstation:martial-peak-chapter-1", number: "1", pages: 1 }] },
   ];
-  expect(nextReaderSource(noPages)?.id).toBe("bacakomik");
-  expect(nextReaderSource(sources, ["weebcentral", "mangadex", "bacakomik"])).toBeNull();
+  expect(nextReaderSource(noPages)).toBeNull();
+  expect(nextReaderSource(sources, ["weebcentral", "mangadex"])).toBeNull();
 });
 
 test("MangaPill chapters are never selected, even as a placeholder list", () => {
