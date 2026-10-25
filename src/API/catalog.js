@@ -36,7 +36,7 @@ const CONSUMET = "https://consumet-api-m8mf.onrender.com";
 const SHIKIMORI = "https://shikimori.io/api";
 const KITSU_ACCEPT = "application/vnd.api+json";
 const CACHE_KEY = "streamgod.catalog.v2";
-const HTTP_KEY = "streamgod.http.v16";
+const HTTP_KEY = "streamgod.http.v17";
 const REQUEST_TIMEOUT = 4000;
 const LIST_TTL = 10 * 60 * 1000;
 const DETAIL_TTL = 30 * 60 * 1000;
@@ -1047,7 +1047,12 @@ export function loadEpisodeEmbed(episodeId) {
 
 const WEEB = "https://weebcentral.com";
 const WEEB_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const WEEB_PAGE_HOSTS = new Set(["scans-hot.planeptune.us", "scans.lastation.us", "official.lowee.us"]);
+const WEEB_PAGE_HOSTS = new Set([
+  "scans-hot.planeptune.us",
+  "hot.planeptune.us",
+  "scans.lastation.us",
+  "official.lowee.us",
+]);
 
 function pageHostname() {
   if (typeof window === "undefined" || !window.location) return "";

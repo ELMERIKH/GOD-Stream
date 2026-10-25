@@ -1008,10 +1008,14 @@ test("Weeb Central page lists drop ad images", () => {
     <img src="https://cdn.example/jackpot-banner.jpg" alt="Page 1">
     <img src="https://komikindo.ch/banner.jpg" alt="Page 1">
     <img src="https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png" alt="Page 1">
+    <img src="https://hot.planeptune.us/manga/Vinland-Saga/0220-001.png" alt="Page 2">
     <img src="https://mangapill.com/a.jpg" alt="Page 2">
     <img src="/static/images/brand.png" alt="Logo">
   `);
-  expect(pages).toEqual(["https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png"]);
+  expect(pages).toEqual([
+    "https://scans-hot.planeptune.us/manga/Kagurabachi/0135-001.png",
+    "https://hot.planeptune.us/manga/Vinland-Saga/0220-001.png",
+  ]);
   expect(readerPageUrls([
     "https://official.lowee.us/manga/Fairy-Tail/0001-001.png",
     "https://ads.example/iklan/banner.jpg",

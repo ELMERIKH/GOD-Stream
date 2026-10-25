@@ -99,6 +99,34 @@ test("an Indonesian Komikindo list is not the reader when English pages exist", 
   expect(sources[0].notice).toMatch(/Weeb Central/);
 });
 
+test("Vinland Saga selects the English source over Komikindo when both have pages", () => {
+  const manga = {
+    source: "anilist",
+    title: "Vinland Saga",
+    notice: "AniList has the catalog entry, not chapter pages.",
+    chapters: [{ id: "", number: 220, title: "Chapter 220", pages: 0 }],
+  };
+  const sources = buildReaderSources(manga, [
+    {
+      id: "komikindo",
+      label: "Komikindo · Indonesian",
+      notice: "Indonesian chapter pages come from Komikindo.",
+      chapters: [{ id: "sanka:komikindo:vinland-saga-chapter-220", number: "220", title: "Chapter 220", pages: 27 }],
+    },
+    {
+      id: "weebcentral",
+      label: "Weeb Central",
+      notice: "English chapter pages come from Weeb Central.",
+      chapters: [{ id: "weebchapter:01K10T8CP17R5M1AX3VX5QJ1D1", number: "220", title: "Chapter 220", pages: 48 }],
+    },
+  ]);
+  expect(sources.map((source) => source.id)[0]).toBe("weebcentral");
+  expect(sources.map((source) => source.id)).toContain("komikindo");
+  expect(nextReaderSource(sources)?.id).toBe("weebcentral");
+  expect(visibleReaderNotice(manga, sources[0])).toBe("English chapter pages come from Weeb Central.");
+  expect(visibleReaderNotice(manga, sources[0])).not.toMatch(/Indonesian/);
+});
+
 test("a failed first manga source falls through to a second source with pages", () => {
   const sources = [
     {
